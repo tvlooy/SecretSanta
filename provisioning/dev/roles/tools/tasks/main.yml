@@ -1,0 +1,25 @@
+# Tools
+
+- openbsd_pkg:
+    name: vim--no_x11
+    state: present
+
+- name: root .vimrc
+  action: template src=vimrc.j2 dest=/root/.vimrc
+
+- name: local user .vimrc
+  template:
+    src: vimrc.j2
+    dest: /home/{{ local_user }}/.vimrc
+    owner: "{{ local_user }}"
+    group: "{{ local_user }}"
+
+- name: Install tools
+  openbsd_pkg: state=present name={{ item }}
+  with_items:
+    - htop
+    - zip
+    - unzip--
+    - tree
+    - git
+    - jq

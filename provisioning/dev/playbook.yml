@@ -1,0 +1,22 @@
+- hosts: secretsanta
+  remote_user: root
+  become: yes
+
+  vars:
+    timezone: Europe/Brussels
+    local_user: vagrant
+    app_domain: dev.secretsantaorganizer.com
+    hostname: secretsanta
+
+    openbsd_release: 6.1
+    openbsd_arch: amd64
+    openbsd_mirror: ftp.eu.openbsd.org
+    openbsd_cvs_mirror: ftp.openbsd.org
+
+  environment:
+      AUTOCONF_VERSION: 2.69
+
+  roles:
+    - { role: openbsd }
+    - { role: tools }
+    - { role: php }

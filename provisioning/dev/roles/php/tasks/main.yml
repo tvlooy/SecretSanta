@@ -1,0 +1,76 @@
+# PHP
+
+# Todo: intl is disabled because of bug:
+# /usr/local/lib/libicuuc.so.12.0: /usr/local/lib/libicudata.so.12.0 : WARNING: symbol(icudt58_dat) size mismatch, relink your program
+
+- name: Install php
+  openbsd_pkg: state=present name={{ item }}
+  with_items:
+    - php%7.0
+    - php-curl%7.0
+    #- php-intl%7.0
+
+- name: Symlink php binaries
+  file:
+    src: /usr/local/bin/{{ item.from }}
+    dest: /usr/local/bin/{{ item.to }}
+    state: link
+  with_items:
+    - { from: php-7.0 , to: php }
+    - { from: php-config-7.0 , to: php-config }
+    - { from: phpize-7.0 , to: phpize }
+
+- name: Install autoconf
+  openbsd_pkg: name={{ item }} state=present
+  with_items:
+    - autoconf-2.69p2
+    - autoconf-archive
+
+# Workaround for http://marc.info/?l=openbsd-ports&m=149311988731690&w=2
+- name: Copy ax_check_compile_flag.m4
+  shell: cp /usr/local/share/aclocal/ax_check_compile_flag.m4 /usr/local/share/php-7.0/build/ax_check_compile_flag.m4
+
+- name: Get apcu
+  git:
+    repo: https://github.com/krakjoe/apcu
+    dest: /tmp/apcu
+
+- name: Install apcu
+  command: "{{ item }}"
+  args:
+    chdir: /tmp/apcu
+  with_items:
+    - phpize
+    - ./configure
+    - make
+    - make install
+
+- name: Get xdebug
+  git:
+    repo: https://github.com/xdebug/xdebug
+    dest: /tmp/xdebug
+
+- name: Install xdebug
+  command: "{{ item }}"
+  args:
+    chdir: /tmp/xdebug
+  with_items:
+    - phpize
+    - ./configure
+    - make
+    - make install
+
+- name: Enable extensions
+  action: template src={{ item }}.ini.j2 dest=/etc/php-7.0/{{ item }}.ini
+  with_items:
+    - curl
+#    - intl
+    - apcu
+    - xdebug
+
+- name: Start php-fpm
+  service:
+    name: php70_fpm
+    state: started
+    enabled: yes
+
