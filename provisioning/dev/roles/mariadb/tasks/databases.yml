@@ -1,0 +1,35 @@
+# MariaDB - databases
+
+- name: Add secretsanta database
+  mysql_db:
+    name: secretsanta
+    encoding: utf8mb4
+    collation: utf8mb4_general_ci
+    state: present
+
+- name: Add secretsanta user
+  mysql_user:
+    name: secretsanta
+    host: localhost
+    password: vagrant
+    priv: "secretsanta.*:ALL"
+    state: present
+
+- name: Add root user access for host
+  mysql_user:
+    name: root
+    password: vagrant
+    host: 192.168.33.1
+    priv: "*.*:ALL,GRANT"
+    state: present
+
+- name: Copy Postfix bounces table script
+  copy:
+    src: files/postfix_bounce.sql
+    dest: /tmp/postfix_bounce.sql
+
+- name: Install Postfix bounces table
+  mysql_db:
+    name: secretsanta
+    state: import
+    target: /tmp/postfix_bounce.sql

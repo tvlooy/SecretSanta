@@ -22,10 +22,10 @@
 - name: Configure doas
   action: template src=doas.conf.j2 dest=/etc/doas.conf
 
-- name: root .profile
+- name: Set root .profile
   action: template src=profile_root.j2 dest=/root/.profile
 
-- name: local user .profile
+- name: Set local user .profile
   template:
     src: profile_local_user.j2
     dest: /home/{{ local_user }}/.profile

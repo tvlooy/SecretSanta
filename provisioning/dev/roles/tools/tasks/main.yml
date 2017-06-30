@@ -1,13 +1,14 @@
 # Tools
 
-- openbsd_pkg:
+- name: Install vim
+  openbsd_pkg:
     name: vim--no_x11
     state: present
 
-- name: root .vimrc
+- name: Set root .vimrc
   action: template src=vimrc.j2 dest=/root/.vimrc
 
-- name: local user .vimrc
+- name: Set local user .vimrc
   template:
     src: vimrc.j2
     dest: /home/{{ local_user }}/.vimrc

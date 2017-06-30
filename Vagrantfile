@@ -1,6 +1,14 @@
 # -*- mode: ruby -*-
 # vi: set ft=ruby :
 
+$bootstrap_script = <<SCRIPT
+if [ ! -f /usr/bin/python ]; then
+    PKG_PATH=http://ftp.eu.openbsd.org/pub/OpenBSD/6.1/packages/amd64/
+    pkg_add python%2.7
+    ln -sf /usr/local/bin/python2.7 /usr/bin/python
+fi
+SCRIPT
+
 Vagrant.configure(2) do |config|
 
     config.vm.define :secretsanta do |secretsanta_config|
@@ -24,6 +32,7 @@ Vagrant.configure(2) do |config|
         # Shell provisioning
         #secretsanta_config.vm.provision :shell, :path => "shell_provisioner/run.sh"
 
+        secretsanta_config.vm.provision "shell", inline: $bootstrap_script
         secretsanta_config.vm.provision "ansible" do |ansible|
             #ansible.verbose = "v"
             ansible.playbook = "provisioning/dev/playbook.yml"

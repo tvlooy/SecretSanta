@@ -1,8 +1,6 @@
 # PHP
 
-# Todo: intl is disabled because of bug:
-# /usr/local/lib/libicuuc.so.12.0: /usr/local/lib/libicudata.so.12.0 : WARNING: symbol(icudt58_dat) size mismatch, relink your program
-
+# Todo: intl is disabled because of http://marc.info/?l=openbsd-misc&m=149311623530709&w=2
 - name: Install php
   openbsd_pkg: state=present name={{ item }}
   with_items:
@@ -26,14 +24,20 @@
     - autoconf-2.69p2
     - autoconf-archive
 
-# Workaround for http://marc.info/?l=openbsd-ports&m=149311988731690&w=2
+# Todo: this is a workaround for http://marc.info/?l=openbsd-ports&m=149311988731690&w=2
 - name: Copy ax_check_compile_flag.m4
   shell: cp /usr/local/share/aclocal/ax_check_compile_flag.m4 /usr/local/share/php-7.0/build/ax_check_compile_flag.m4
+
+- name: Detect apcu installation
+  command: php -m | grep apcu
+  register: detect_apcu
+  ignore_errors: true
 
 - name: Get apcu
   git:
     repo: https://github.com/krakjoe/apcu
     dest: /tmp/apcu
+  when: detect_apcu|failed
 
 - name: Install apcu
   command: "{{ item }}"
@@ -44,11 +48,18 @@
     - ./configure
     - make
     - make install
+  when: detect_apcu|failed
+
+- name: Detect xdebug installation
+  command: php -m | grep xdebug
+  register: detect_xdebug
+  ignore_errors: true
 
 - name: Get xdebug
   git:
     repo: https://github.com/xdebug/xdebug
     dest: /tmp/xdebug
+  when: detect_xdebug|failed
 
 - name: Install xdebug
   command: "{{ item }}"
@@ -59,6 +70,7 @@
     - ./configure
     - make
     - make install
+  when: detect_xdebug|failed
 
 - name: Enable extensions
   action: template src={{ item }}.ini.j2 dest=/etc/php-7.0/{{ item }}.ini
@@ -68,9 +80,50 @@
     - apcu
     - xdebug
 
+- name: Set php timezone
+  lineinfile:
+    path: /etc/php-7.0.ini
+    regexp: '^date.timezone ='
+    line: 'date.timezone = Europe/Brussels'
+
+- name: Set php-fpm user
+  lineinfile:
+    path: /etc/php-fpm.conf
+    regexp: '^user ='
+    line: 'user = vagrant'
+
+- name: Set php-fpm user
+  lineinfile:
+    path: /etc/php-fpm.conf
+    regexp: '^group ='
+    line: 'group = vagrant'
+
 - name: Start php-fpm
   service:
     name: php70_fpm
     state: started
     enabled: yes
 
+- name: Detect composer installation
+  stat:
+    path: /usr/local/bin/composer.phar
+  register: composer_file
+
+- name: Install composer
+  get_url:
+    url: https://getcomposer.org/composer.phar
+    dest: /usr/local/bin/composer.phar
+    mode: a+x
+  when: not composer_file.stat.exists
+
+- name: Detect phpunit installation
+  stat:
+    path: /usr/local/bin/phpunit.phar
+  register: phpunit_file
+
+- name: Install phpunit
+  get_url:
+    url: https://phar.phpunit.de/phpunit.phar
+    dest: /usr/local/bin/phpunit.phar
+    mode: a+x
+  when: not phpunit_file.stat.exists

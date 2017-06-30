@@ -1,0 +1,5 @@
+# MariaDB
+
+- include: install.yml
+- include: secure.yml
+- include: databases.yml

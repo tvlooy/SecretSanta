@@ -20,3 +20,4 @@
     - { role: openbsd }
     - { role: tools }
     - { role: php }
+    - { role: mariadb }
