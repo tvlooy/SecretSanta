@@ -18,7 +18,11 @@ git clone git@github.com:Intracto/SecretSanta.git
 cd SecretSanta
 ```
 
-Install VirtualBox 5.0.24 and Vagrant 1.8.7 (or more recent).
+The setup is only tested with these versions. If you see failures use the exact versions:
+
+  - VirtualBox 5.1.22
+  - Vagrant 1.8.7
+  - Ansible 2.3.1.0
 
 ```
 vagrant up
@@ -53,8 +57,6 @@ phpunit.phar -c app
 ```
 
 [Writing and running Behat tests is documented here.](https://github.com/Intracto/SecretSanta/blob/master/docs/behat.md)
-
-Note, don't worry if you see the shell provisioning print a lot of red lines. It all works fine.
 
 Building the frontend:
 

@@ -1,0 +1,52 @@
+# Nginx
+
+- name: Detect certificate key
+  stat:
+    path: /etc/ssl/private/dev.secretsantaorganizer.com.key
+  register: certificate_file
+
+- name: Generate TLS certificate
+  shell: |
+    cp /etc/ssl/openssl.cnf /tmp
+    echo '[ subject_alt_name ]' >> /tmp/openssl.cnf
+    echo 'subjectAltName = DNS:dev.secretsantaorganizer.com, DNS:phpmyadmin.dev.secretsantaorganizer.com, DNS:mails.dev.secretsantaorganizer.com' >> /tmp/openssl.cnf
+    openssl req -x509 -days 7300 -nodes -newkey rsa:2048 \
+      -config /tmp/openssl.cnf \
+      -extensions subject_alt_name \
+      -keyout dev.secretsantaorganizer.com.key \
+      -out dev.secretsantaorganizer.com.pem \
+      -subj '/C=BE/ST=Antwerp/L=Herentals/O=Secret Santa/OU=Developmetn/CN=dev.secretsantaorganizer.com/emailAddress=domainmaster@dev.secretsantaorganizer.com'
+
+    mv dev.secretsantaorganizer.com.key /etc/ssl/private
+    mv dev.secretsantaorganizer.com.pem /etc/ssl
+  when: not certificate_file.stat.exists
+
+- name: Install Nginx
+  openbsd_pkg: state=present name=nginx
+
+- name: Start Nginx
+  service:
+    name: nginx
+    state: started
+    enabled: yes
+
+- name: Configure Nginx
+  template:
+    src: nginx.conf.j2
+    dest: /etc/nginx/nginx.conf
+  notify:
+    - restart nginx
+
+- name: Install Nginx vhost directory
+  file:
+    path: /etc/nginx/vhosts
+    state: directory
+  notify:
+    - restart nginx
+
+- name: Configure application vhost
+  template:
+    src: dev.secretsantaorganizer.com.conf.j2
+    dest: /etc/nginx/vhosts/dev.secretsantaorganizer.com.conf
+  notify:
+    - restart nginx
