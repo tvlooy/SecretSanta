@@ -17,8 +17,8 @@
       AUTOCONF_VERSION: 2.69
 
   roles:
-#    - { role: openbsd }
-#    - { role: tools }
-#    - { role: php }
-#    - { role: mariadb }
+    - { role: openbsd }
+    - { role: tools }
+    - { role: php }
+    - { role: mariadb }
     - { role: nginx }

@@ -2,7 +2,9 @@
 
 # Todo: intl is disabled because of http://marc.info/?l=openbsd-misc&m=149311623530709&w=2
 - name: Install php
-  openbsd_pkg: state=present name={{ item }}
+  openbsd_pkg:
+    state: present
+    name: "{{ item }}"
   with_items:
     - php%7.0
     - php-curl%7.0
@@ -19,7 +21,9 @@
     - { from: phpize-7.0 , to: phpize }
 
 - name: Install autoconf
-  openbsd_pkg: name={{ item }} state=present
+  openbsd_pkg:
+    name: "{{ item }}"
+    state: present
   with_items:
     - autoconf-2.69p2
     - autoconf-archive
@@ -73,7 +77,9 @@
   when: detect_xdebug|failed
 
 - name: Enable extensions
-  action: template src={{ item }}.ini.j2 dest=/etc/php-7.0/{{ item }}.ini
+  template:
+    src: "{{ item }}.ini.j2"
+    dest: /etc/php-7.0/{{ item }}.ini
   with_items:
     - curl
 #    - intl
@@ -85,6 +91,11 @@
     path: /etc/php-7.0.ini
     regexp: '^date.timezone ='
     line: 'date.timezone = Europe/Brussels'
+
+- name: Configure php-fpm
+  copy:
+    src: files/php-fpm.conf
+    dest: /etc/php-fpm.conf
 
 - name: Set php-fpm user
   lineinfile:

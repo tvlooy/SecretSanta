@@ -6,7 +6,9 @@
     state: present
 
 - name: Set root .vimrc
-  action: template src=vimrc.j2 dest=/root/.vimrc
+  template:
+    src: vimrc.j2
+    dest: /root/.vimrc
 
 - name: Set local user .vimrc
   template:
@@ -16,7 +18,9 @@
     group: "{{ local_user }}"
 
 - name: Install tools
-  openbsd_pkg: state=present name={{ item }}
+  openbsd_pkg:
+    state: present
+    name: "{{ item }}"
   with_items:
     - htop
     - zip

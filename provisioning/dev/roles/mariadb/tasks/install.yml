@@ -1,7 +1,9 @@
 # MariaDB - install
 
 - name: Install MariaDB
-  openbsd_pkg: state=present name=mariadb-server
+  openbsd_pkg:
+    state: present
+    name: mariadb-server
 
 - name: Detect default database
   stat:
@@ -19,7 +21,9 @@
     line: 'bind-address = 0.0.0.0'
 
 - name: Configure access for root
-  action: template src=my.cnf.j2 dest=/root/.my.cnf
+  template:
+    src: my.cnf.j2
+    dest: /root/.my.cnf
 
 - name: Start MariaDB
   service:
@@ -28,7 +32,11 @@
     enabled: yes
 
 - name: Install Percona toolkit
-  openbsd_pkg: state=present name=percona-toolkit
+  openbsd_pkg:
+    state: present
+    name: percona-toolkit
 
 - name: Python MySQL module dependency for mysql_db / mysql_user
-  openbsd_pkg: state=present name=py-mysql
+  openbsd_pkg:
+    state: present
+    name: py-mysql

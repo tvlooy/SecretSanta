@@ -22,13 +22,16 @@
   when: not certificate_file.stat.exists
 
 - name: Install Nginx
-  openbsd_pkg: state=present name=nginx
+  openbsd_pkg:
+    state: present
+    name: nginx
 
 - name: Start Nginx
   service:
     name: nginx
     state: started
     enabled: yes
+    arguments: -u
 
 - name: Configure Nginx
   template:
