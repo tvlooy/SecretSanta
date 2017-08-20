@@ -1,6 +1,6 @@
 # PHP
 
-# Todo: intl is disabled because of http://marc.info/?l=openbsd-misc&m=149311623530709&w=2
+# Todo: intl is disabled because of http://marc.info/?l=openbsd-misc&m=149311623530709&w=2 (fixed in current)
 - name: Install php
   openbsd_pkg:
     state: present
@@ -28,7 +28,7 @@
     - autoconf-2.69p2
     - autoconf-archive
 
-# Todo: this is a workaround for http://marc.info/?l=openbsd-ports&m=149311988731690&w=2
+# Todo: this is a workaround for http://marc.info/?l=openbsd-ports&m=149311988731690&w=2 (fixed in current)
 - name: Copy ax_check_compile_flag.m4
   shell: cp /usr/local/share/aclocal/ax_check_compile_flag.m4 /usr/local/share/php-7.0/build/ax_check_compile_flag.m4
 
