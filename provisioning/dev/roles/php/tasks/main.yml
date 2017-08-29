@@ -1,14 +1,13 @@
 # PHP
 
-# Todo: intl is disabled because of http://marc.info/?l=openbsd-misc&m=149311623530709&w=2 (fixed in current)
 - name: Install php
   openbsd_pkg:
     state: present
     name: "{{ item }}"
   with_items:
     - php%7.0
-    - php-curl%7.0
-    #- php-intl%7.0
+#    - php-curl%7.0
+    - php-intl%7.0
 
 - name: Symlink php binaries
   file:
@@ -27,10 +26,6 @@
   with_items:
     - autoconf-2.69p2
     - autoconf-archive
-
-# Todo: this is a workaround for http://marc.info/?l=openbsd-ports&m=149311988731690&w=2 (fixed in current)
-- name: Copy ax_check_compile_flag.m4
-  shell: cp /usr/local/share/aclocal/ax_check_compile_flag.m4 /usr/local/share/php-7.0/build/ax_check_compile_flag.m4
 
 - name: Detect apcu installation
   command: php -m | grep apcu
@@ -81,8 +76,8 @@
     src: "{{ item }}.ini.j2"
     dest: /etc/php-7.0/{{ item }}.ini
   with_items:
-    - curl
-#    - intl
+#    - curl
+    - intl
     - apcu
     - xdebug
 

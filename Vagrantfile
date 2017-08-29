@@ -13,7 +13,7 @@ Vagrant.configure(2) do |config|
 
     config.vm.define :secretsanta do |secretsanta_config|
 
-        secretsanta_config.vm.box = "Intracto/openbsd-6.1-amd64"
+        secretsanta_config.vm.box = "tvlooy/openbsd-snapshots-amd64"
 
         secretsanta_config.vm.provider "virtualbox" do |v|
             # show a display for easy debugging
@@ -26,7 +26,7 @@ Vagrant.configure(2) do |config|
             v.customize ["setextradata", :id, "VBoxInternal2/SharedFoldersEnableSymlinksCreate/v-root", "1"]
         end
 
-        secretsanta_config.vm.synced_folder ".", "/vagrant", type: "nfs"
+        secretsanta_config.vm.synced_folder ".", "/var/www/htdocs/vagrant", type: "nfs"
         secretsanta_config.vm.network "private_network", ip: "192.168.33.50"
 
         # Shell provisioning
