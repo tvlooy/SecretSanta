@@ -6,7 +6,7 @@
     name: "{{ item }}"
   with_items:
     - php%7.0
-#    - php-curl%7.0
+    - php-curl%7.0
     - php-intl%7.0
 
 - name: Symlink php binaries
@@ -28,7 +28,7 @@
     - autoconf-archive
 
 - name: Detect apcu installation
-  command: php -m | grep apcu
+  shell: php -m | grep apcu
   register: detect_apcu
   ignore_errors: true
 
@@ -50,7 +50,7 @@
   when: detect_apcu|failed
 
 - name: Detect xdebug installation
-  command: php -m | grep xdebug
+  shell: php -m | grep xdebug
   register: detect_xdebug
   ignore_errors: true
 
@@ -76,7 +76,7 @@
     src: "{{ item }}.ini.j2"
     dest: /etc/php-7.0/{{ item }}.ini
   with_items:
-#    - curl
+    - curl
     - intl
     - apcu
     - xdebug
