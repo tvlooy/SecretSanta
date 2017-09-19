@@ -13,6 +13,8 @@
     openbsd_mirror: ftp.eu.openbsd.org
     openbsd_cvs_mirror: ftp.openbsd.org
 
+    php_version: 7.1.9
+
   environment:
       AUTOCONF_VERSION: 2.69
 

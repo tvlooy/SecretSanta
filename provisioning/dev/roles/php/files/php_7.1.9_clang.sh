@@ -1,12 +1,12 @@
-#!/bin/bash
+#!/bin/sh
 
 set -e
 
 export AUTOCONF_VERSION=2.69
 
-# Use a release version like 7.1.8 for a stable release
-PHP_VERSION=php-7.1.8
-PHP_INSTALL_NAME=7.1.8
+# Use a release version like 7.1.9 for a stable release
+PHP_VERSION=php-7.1.9
+PHP_INSTALL_NAME=7.1.9
 
 FILE_OWNER=vagrant
 
@@ -15,20 +15,15 @@ FPM_PORT=9071
 FPM_USER=$FILE_OWNER
 FPM_GROUP=$FILE_OWNER
 
-doas rm -rf /etc/php-${PHP_INSTALL_NAME}
-doas rm -rf /usr/local/php-${PHP_INSTALL_NAME}
+rm -rf /etc/php-${PHP_INSTALL_NAME}
+rm -rf /usr/local/php-${PHP_INSTALL_NAME}
 
-if [ "$1" == "-r" ]; then
-    echo "Removed version ${PHP_INSTALL_NAME} from the system."
-    exit 0;
-fi
+mkdir -p /etc/php-${PHP_INSTALL_NAME}/conf.d
+mkdir -p /etc/php-${PHP_INSTALL_NAME}/{cli,fpm}/conf.d
+mkdir /usr/local/php-${PHP_INSTALL_NAME}
 
-doas mkdir -p /etc/php-${PHP_INSTALL_NAME}/conf.d
-doas mkdir -p /etc/php-${PHP_INSTALL_NAME}/{cli,fpm}/conf.d
-doas mkdir /usr/local/php-${PHP_INSTALL_NAME}
-
-doas chown -R ${FILE_OWNER}:${FILE_OWNER} /etc/php-${PHP_INSTALL_NAME}
-doas chown -R ${FILE_OWNER}:${FILE_OWNER} /usr/local/php-${PHP_INSTALL_NAME}
+chown -R ${FILE_OWNER}:${FILE_OWNER} /etc/php-${PHP_INSTALL_NAME}
+chown -R ${FILE_OWNER}:${FILE_OWNER} /usr/local/php-${PHP_INSTALL_NAME}
 
 # Download
 
@@ -50,6 +45,7 @@ git clean -xdf
 #     --with-freetype-dir
 #     --with-openssl
 #     --with-xsl
+#     --enable-intl
 # Added these:
 #     --disable-phar
 
@@ -73,7 +69,6 @@ CONFIGURE_STRING="--prefix=/usr/local/php-${PHP_INSTALL_NAME}
                   --with-readline \
                   --with-curl \
                   --disable-cgi \
-                  --enable-intl \
                   --disable-phar"
 
 # Options for development
@@ -121,7 +116,7 @@ make distclean
     --with-config-file-path=/etc/php-${PHP_INSTALL_NAME}/cli \
     --with-config-file-scan-dir=/etc/php-${PHP_INSTALL_NAME}/cli/conf.d
 
-make -j4
+make -j2
 make install
 
 # Install config files
@@ -129,21 +124,7 @@ make install
 cp php.ini-production /etc/php-${PHP_INSTALL_NAME}/cli/php.ini
 sed -i "s/;date.timezone =.*/date.timezone = ${TIMEZONE}/" /etc/php-${PHP_INSTALL_NAME}/cli/php.ini
 
-# Build extensions
-
-cd ..
-
-PATH=/usr/local/php-${PHP_INSTALL_NAME}/bin:/usr/local/php-${PHP_INSTALL_NAME}/sbin:$PATH
-
 # opcache
 echo "zend_extension=opcache.so" > /etc/php-${PHP_INSTALL_NAME}/conf.d/opcache.ini
 ln -s /etc/php-${PHP_INSTALL_NAME}/conf.d/opcache.ini /etc/php-${PHP_INSTALL_NAME}/cli/conf.d/opcache.ini
 ln -s /etc/php-${PHP_INSTALL_NAME}/conf.d/opcache.ini /etc/php-${PHP_INSTALL_NAME}/fpm/conf.d/opcache.ini
-
-# Symlink PHP into the path
-doas ln -sf /usr/local/php-${PHP_INSTALL_NAME}/bin/php /usr/bin/php-${PHP_INSTALL_NAME}
-
-# Ready
-
-echo "Don't forget to run 'make test'."
-

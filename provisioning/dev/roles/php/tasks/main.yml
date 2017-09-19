@@ -1,31 +1,49 @@
 # PHP
 
-- name: Install php
-  openbsd_pkg:
-    state: present
-    name: "{{ item }}"
-  with_items:
-    - php%7.0
-    - php-curl%7.0
-    - php-intl%7.0
-
-- name: Symlink php binaries
-  file:
-    src: /usr/local/bin/{{ item.from }}
-    dest: /usr/local/bin/{{ item.to }}
-    state: link
-  with_items:
-    - { from: php-7.0 , to: php }
-    - { from: php-config-7.0 , to: php-config }
-    - { from: phpize-7.0 , to: phpize }
-
-- name: Install autoconf
+- name: Install php build tools
   openbsd_pkg:
     name: "{{ item }}"
     state: present
   with_items:
     - autoconf-2.69p2
     - autoconf-archive
+    - bison
+
+- name: Detect php installation
+  stat:
+    path: /usr/local/php-{{ php_version }}/php
+  register: php_cli
+
+- name: Install php installation script
+  copy:
+    src: files/php_{{ php_version }}_clang.sh
+    dest: /tmp/php_{{ php_version }}_clang.sh
+    mode: a+x
+  when: not php_cli.stat.exists
+
+- name: Set php installation script permissions
+  file:
+    path: /tmp/php_{{ php_version }}_clang.sh
+    owner: vagrant
+    group: vagrant
+    mode: 0755
+  when: not php_cli.stat.exists
+
+- name: Compile and install php
+  command: /tmp/php_{{ php_version }}_clang.sh
+  args:
+    chdir: /tmp
+  when: not php_cli.stat.exists
+
+- name: Symlink php binaries
+  file:
+    src: /usr/local/php-{{ php_version }}/{{ item }}
+    dest: /usr/local/bin/{{ item }}
+    state: link
+  with_items:
+    - php
+    - php-config
+    - phpize
 
 - name: Detect apcu installation
   shell: php -m | grep apcu
@@ -71,44 +89,42 @@
     - make install
   when: detect_xdebug|failed
 
-- name: Enable extensions
-  template:
-    src: "{{ item }}.ini.j2"
-    dest: /etc/php-7.0/{{ item }}.ini
-  with_items:
-    - curl
-    - intl
-    - apcu
-    - xdebug
-
-- name: Set php timezone
-  lineinfile:
-    path: /etc/php-7.0.ini
-    regexp: '^date.timezone ='
-    line: 'date.timezone = Europe/Brussels'
-
-- name: Configure php-fpm
-  copy:
-    src: files/php-fpm.conf
-    dest: /etc/php-fpm.conf
-
-- name: Set php-fpm user
-  lineinfile:
-    path: /etc/php-fpm.conf
-    regexp: '^user ='
-    line: 'user = vagrant'
-
-- name: Set php-fpm user
-  lineinfile:
-    path: /etc/php-fpm.conf
-    regexp: '^group ='
-    line: 'group = vagrant'
-
-- name: Start php-fpm
-  service:
-    name: php70_fpm
-    state: started
-    enabled: yes
+#- name: Enable extensions
+#  template:
+#    src: "{{ item }}.ini.j2"
+#    dest: /etc/php-7.0/{{ item }}.ini
+#  with_items:
+#    - apcu
+#    - xdebug
+#
+#- name: Set php timezone
+#  lineinfile:
+#    path: /etc/php-7.0.ini
+#    regexp: '^date.timezone ='
+#    line: 'date.timezone = Europe/Brussels'
+#
+#- name: Configure php-fpm
+#  copy:
+#    src: files/php-fpm.conf
+#    dest: /etc/php-fpm.conf
+#
+#- name: Set php-fpm user
+#  lineinfile:
+#    path: /etc/php-fpm.conf
+#    regexp: '^user ='
+#    line: 'user = vagrant'
+#
+#- name: Set php-fpm user
+#  lineinfile:
+#    path: /etc/php-fpm.conf
+#    regexp: '^group ='
+#    line: 'group = vagrant'
+#
+#- name: Start php-fpm
+#  service:
+#    name: php70_fpm
+#    state: started
+#    enabled: yes
 
 - name: Detect composer installation
   stat:
