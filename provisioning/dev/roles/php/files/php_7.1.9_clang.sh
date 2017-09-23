@@ -11,7 +11,6 @@ PHP_INSTALL_NAME=7.1.9
 FILE_OWNER=vagrant
 
 TIMEZONE="Europe\/Brussels"
-FPM_PORT=9071
 FPM_USER=$FILE_OWNER
 FPM_GROUP=$FILE_OWNER
 
@@ -27,7 +26,7 @@ chown -R ${FILE_OWNER}:${FILE_OWNER} /usr/local/php-${PHP_INSTALL_NAME}
 
 # Download
 
-if [ ! -d php-src ]; then 
+if [ ! -d php-src ]; then
     git clone http://github.com/php/php-src.git
 fi
 
@@ -41,13 +40,9 @@ git clean -xdf
 ./buildconf --force
 
 # Removed these:
-#     --with-gd
+#     --with-gd = png.h not found
 #     --with-freetype-dir
 #     --with-openssl
-#     --with-xsl
-#     --enable-intl
-# Added these:
-#     --disable-phar
 
 CONFIGURE_STRING="--prefix=/usr/local/php-${PHP_INSTALL_NAME}
                   --enable-bcmath \
@@ -94,12 +89,14 @@ make install
 cp php.ini-production /etc/php-${PHP_INSTALL_NAME}/fpm/php.ini
 sed -i "s/;date.timezone =.*/date.timezone = ${TIMEZONE}/" /etc/php-${PHP_INSTALL_NAME}/fpm/php.ini
 
-cp sapi/fpm/php-fpm.conf.in /etc/php-${PHP_INSTALL_NAME}/fpm/php-fpm.conf
-sed -i "s#^include=.*/#include=/etc/php-${PHP_INSTALL_NAME}/fpm/pool.d/#" /etc/php-${PHP_INSTALL_NAME}/fpm/php-fpm.conf
+cp /usr/local/php-${PHP_INSTALL_NAME}/etc/php-fpm.conf.default /usr/local/php-${PHP_INSTALL_NAME}/etc/php-fpm.conf
+sed -i "s#^include=.*/#include=/etc/php-${PHP_INSTALL_NAME}/fpm/pool.d/#" /usr/local/php-${PHP_INSTALL_NAME}/etc/php-fpm.conf
 
 mkdir /etc/php-${PHP_INSTALL_NAME}/fpm/pool.d/
 cp /usr/local/php-${PHP_INSTALL_NAME}/etc/php-fpm.d/www.conf.default /etc/php-${PHP_INSTALL_NAME}/fpm/pool.d/www.conf
-sed -i "s/listen = 127.0.0.1:9000/listen = 127.0.0.1:${FPM_PORT}/g" /etc/php-${PHP_INSTALL_NAME}/fpm/pool.d/www.conf
+sed -i "s#listen = 127.0.0.1:9000#listen = /var/www/run/php-fpm-${PHP_INSTALL_NAME}.sock#g" /etc/php-${PHP_INSTALL_NAME}/fpm/pool.d/www.conf
+sed -i "s/;listen.owner = .*/listen.owner = vagrant/g" /etc/php-${PHP_INSTALL_NAME}/fpm/pool.d/www.conf
+sed -i "s/;listen.group = .*/listen.group = www/g" /etc/php-${PHP_INSTALL_NAME}/fpm/pool.d/www.conf
 
 # Cleanup
 
@@ -128,3 +125,18 @@ sed -i "s/;date.timezone =.*/date.timezone = ${TIMEZONE}/" /etc/php-${PHP_INSTAL
 echo "zend_extension=opcache.so" > /etc/php-${PHP_INSTALL_NAME}/conf.d/opcache.ini
 ln -s /etc/php-${PHP_INSTALL_NAME}/conf.d/opcache.ini /etc/php-${PHP_INSTALL_NAME}/cli/conf.d/opcache.ini
 ln -s /etc/php-${PHP_INSTALL_NAME}/conf.d/opcache.ini /etc/php-${PHP_INSTALL_NAME}/fpm/conf.d/opcache.ini
+
+# These modules did not work when compiling into php but do work as an loadable module
+git clean -xdf
+export PATH=$PATH:/usr/local/php-${PHP_INSTALL_NAME}/bin
+for extension in xsl intl phar; do
+    cd ext/${extension}
+    phpize
+    ./configure
+    make -j2
+    make install
+    echo "extension=${extension}.so" > /etc/php-${PHP_INSTALL_NAME}/conf.d/${extension}.ini
+    ln -s /etc/php-${PHP_INSTALL_NAME}/conf.d/${extension}.ini /etc/php-${PHP_INSTALL_NAME}/cli/conf.d/${extension}.ini
+    ln -s /etc/php-${PHP_INSTALL_NAME}/conf.d/${extension}.ini /etc/php-${PHP_INSTALL_NAME}/fpm/conf.d/${extension}.ini
+    cd -
+done

@@ -23,8 +23,8 @@
 
 - name: Install Nginx
   openbsd_pkg:
-    state: present
     name: nginx
+    state: present
 
 - name: Start Nginx
   service:

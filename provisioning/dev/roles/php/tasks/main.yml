@@ -8,10 +8,11 @@
     - autoconf-2.69p2
     - autoconf-archive
     - bison
+    - libxslt
 
 - name: Detect php installation
   stat:
-    path: /usr/local/php-{{ php_version }}/php
+    path: /usr/local/php-{{ php_version }}/bin/php
   register: php_cli
 
 - name: Install php installation script
@@ -37,13 +38,19 @@
 
 - name: Symlink php binaries
   file:
-    src: /usr/local/php-{{ php_version }}/{{ item }}
+    src: /usr/local/php-{{ php_version }}/bin/{{ item }}
     dest: /usr/local/bin/{{ item }}
     state: link
   with_items:
     - php
     - php-config
     - phpize
+
+- name: Add user vagrant to group www so he can assess the fpm socket
+  user:
+    name: vagrant
+    groups: www
+    append: yes
 
 - name: Detect apcu installation
   shell: php -m | grep apcu
@@ -88,6 +95,12 @@
     - make
     - make install
   when: detect_xdebug|failed
+
+
+##### TODO
+## FPM rc script
+
+
 
 #- name: Enable extensions
 #  template:

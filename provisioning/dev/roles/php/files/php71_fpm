@@ -1,0 +1,10 @@
+#!/bin/sh
+
+daemon="/usr/local/php-7.1.9/sbin/php-fpm"
+
+. /etc/rc.d/rc.subr
+
+pexp="php-fpm-7.1: master process .*"
+rc_reload=NO
+
+rc_cmd $1
