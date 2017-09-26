@@ -1,45 +1,4 @@
 # OpenBSD
 
-- name: Set timezone
-  timezone:
-    name: "{{ timezone }}"
-
-- name: Configure hosts file
-  template:
-    src: hosts.j2
-    dest: /etc/hosts
-
-- name: Configure hostname
-  template:
-    src: myname.j2
-    dest: /etc/myname
-
-- name: Set hostname
-  shell: hostname {{ hostname }}
-
-- name: Configure syspatch installurl
-  template:
-    src: installurl.j2
-    dest: /etc/installurl
-  when: openbsd_release != "snapshots"
-
-- name: Run syspatch
-  shell: syspatch
-  when: openbsd_release != "snapshots"
-
-- name: Configure doas
-  template:
-    src: doas.conf.j2
-    dest: /etc/doas.conf
-
-- name: Set root .profile
-  template:
-    src: profile_root.j2
-    dest: /root/.profile
-
-- name: Set local user .profile
-  template:
-    src: profile_local_user.j2
-    dest: /home/{{ local_user }}/.profile
-    owner: "{{ local_user }}"
-    group: "{{ local_user }}"
+- include: environment.yml
+- include: source.yml

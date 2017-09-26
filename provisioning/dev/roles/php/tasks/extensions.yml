@@ -1,0 +1,63 @@
+# PHP
+
+- name: Detect apcu installation
+  shell: php -m | grep apcu
+  register: detect_apcu
+  ignore_errors: true
+
+- name: Get apcu
+  git:
+    repo: https://github.com/krakjoe/apcu
+    dest: /tmp/apcu
+  when: detect_apcu|failed
+
+# Todo: this is a workaround for http://marc.info/?l=openbsd-ports&m=149311988731690&w=2
+- name: Copy ax_check_compile_flag.m4
+  shell: cp /usr/local/share/aclocal/ax_check_compile_flag.m4 /tmp/apcu/build
+  when: detect_apcu|failed
+
+- name: Install apcu
+  command: "{{ item }}"
+  args:
+    chdir: /tmp/apcu
+  with_items:
+    - phpize
+    - ./configure
+    - make
+    - make install
+  when: detect_apcu|failed
+
+- name: Detect xdebug installation
+  shell: php -m | grep xdebug
+  register: detect_xdebug
+  ignore_errors: true
+
+- name: Get xdebug
+  git:
+    repo: https://github.com/xdebug/xdebug
+    dest: /tmp/xdebug
+  when: detect_xdebug|failed
+
+# Todo: this is a workaround for http://marc.info/?l=openbsd-ports&m=149311988731690&w=2
+- name: Copy ax_check_compile_flag.m4
+  shell: cp /usr/local/share/aclocal/ax_check_compile_flag.m4 /tmp/xdebug/build
+  when: detect_xdebug|failed
+
+- name: Install xdebug
+  command: "{{ item }}"
+  args:
+    chdir: /tmp/xdebug
+  with_items:
+    - phpize
+    - ./configure
+    - make
+    - make install
+  when: detect_xdebug|failed
+
+- name: Enable extensions
+  template:
+    src: "{{ item }}.ini.j2"
+    dest: /etc/php-7.1/{{ item }}.ini
+  with_items:
+    - apcu
+    - xdebug

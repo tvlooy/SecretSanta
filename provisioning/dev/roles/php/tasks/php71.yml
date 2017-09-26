@@ -1,0 +1,64 @@
+# PHP - php71
+
+- name: Check if PHP 7.1 is available
+  stat:
+    path: /usr/ports/lang/php/7.1
+  register: php_71_port
+
+- name: Configure mk.conf to install port dependencies as package
+  copy:
+    src: files/mk.conf
+    dest: /etc/mk.conf
+  when: not php_71_port.stat.exists
+
+- name: Install patch for PHP 7.1
+  copy:
+    src: files/php71.patch
+    dest: /tmp/php71.patch
+  when: not php_71_port.stat.exists
+
+- name: Apply patch for PHP 7.1
+  command: git apply /tmp/php71.patch
+  args:
+    chdir: /usr/ports
+  when: not php_71_port.stat.exists
+
+- name: Install PHP 7.1 from ports
+  command: "{{ item }}"
+  args:
+    chdir: /usr/ports/lang/php/7.1
+  with_items:
+  - make
+  - make install
+
+- name: Symlink php binaries
+  file:
+    src: /usr/local/bin/{{ item }}-7.1
+    dest: /usr/local/bin/{{ item }}
+    state: link
+  with_items:
+    - php
+    - php-config
+    - phpize
+
+- name: Install PHP 7.1 extensions from ports
+  command: env SUBPACKAGE="-{{ item }}" make install
+  args:
+    chdir: /usr/ports/lang/php/7.1
+  with_items:
+  - intl
+  - curl
+
+- name: Enable extensions
+  template:
+    src: "{{ item }}.ini.j2"
+    dest: /etc/php-7.1/{{ item }}.ini
+  with_items:
+    - intl
+    - curl
+
+- name: Add user vagrant to group www so he can assess the fpm socket
+  user:
+    name: vagrant
+    groups: www
+    append: yes

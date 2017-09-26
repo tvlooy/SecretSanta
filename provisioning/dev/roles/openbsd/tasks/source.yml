@@ -1,0 +1,30 @@
+# OpenBSD - source
+
+- name: Add vagrant user to wsrc to be able to build sources
+  user:
+    name: vagrant
+    groups: wsrc
+    append: yes
+
+#- name: Create known hosts file
+#  file:
+#    path: /root/.ssh/known_hosts
+#    state: touch
+
+#- name: Remove cvs mirror host key
+#  shell: ssh-keygen -R {{ openbsd_cvs_mirror }}
+#
+#- name: Add cvs mirror host key
+#  shell: ssh-keyscan -H {{ openbsd_cvs_mirror }} >> /root/.ssh/known_hosts
+
+#- name: Get OpenBSD cvs ports
+#  shell: cvs -qd anoncvs@{{ openbsd_cvs_mirror }}:/cvs checkout -P ports
+#  args:
+#    chdir: /usr
+#    creates: /usr/ports
+
+- name: Get OpenBSD ports from Github
+  git:
+    repo: https://github.com/openbsd/ports.git
+    dest: /usr/ports
+    update: no

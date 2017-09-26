@@ -1,0 +1,1900 @@
+commit 920bc8dea5fde182f0e7e8ec6f036c84d77838d9
+Author: Robert Nagy <robert@redcoolbeans.com>
+Date:   Sat Sep 23 11:20:29 2017 +0200
+
+    add 7.1
+
+diff --git a/lang/php/7.1/Makefile b/lang/php/7.1/Makefile
+new file mode 100644
+index 00000000000..efd0739132a
+--- /dev/null
++++ b/lang/php/7.1/Makefile
+@@ -0,0 +1,13 @@
++# $OpenBSD: Makefile,v 1.23 2016/11/04 11:35:19 sthen Exp $
++
++BROKEN-sparc64=	SIGBUS during phar generation
++
++PV=		7.1
++V=		${PV}.9
++
++WANTLIB-main+=	stdc++ ncurses readline
++BUILD_DEPENDS+=	devel/bison
++
++CONFIGURE_ENV+=		YACC="${LOCALBASE}/bin/bison -y"
++
++.include <bsd.port.mk>
+diff --git a/lang/php/7.1/distinfo b/lang/php/7.1/distinfo
+new file mode 100644
+index 00000000000..27f8fc326af
+--- /dev/null
++++ b/lang/php/7.1/distinfo
+@@ -0,0 +1,4 @@
++SHA256 (php-7.1.9.tar.bz2) = MU3MEN/dfERD7bT+HhM6RPKyqDUb6MnrarkiLUX9m64=
++SHA256 (suhosin-0.9.38.tar.gz) = wC12xOfOd3kQo3wYGBy2f9npDv4BB/6rPeMTG1+JvOo=
++SIZE (php-7.1.9.tar.bz2) = 15093853
++SIZE (suhosin-0.9.38.tar.gz) = 122800
+diff --git a/lang/php/7.1/patches/patch-acinclude_m4 b/lang/php/7.1/patches/patch-acinclude_m4
+new file mode 100644
+index 00000000000..f8300f58292
+--- /dev/null
++++ b/lang/php/7.1/patches/patch-acinclude_m4
+@@ -0,0 +1,47 @@
++$OpenBSD: patch-acinclude_m4,v 1.1.1.1 2015/12/14 17:58:46 robert Exp $
++Index: acinclude.m4
++--- acinclude.m4.orig
+++++ acinclude.m4
++@@ -985,15 +985,9 @@ dnl ---------------------------------------------- Sha
++   if test "$3" != "shared" && test "$3" != "yes" && test "$4" = "cli"; then
++ dnl ---------------------------------------------- CLI static module
++     [PHP_]translit($1,a-z_-,A-Z__)[_SHARED]=no
++-    case "$PHP_SAPI" in
++-      cgi|embed[)]
++-        PHP_ADD_SOURCES($ext_dir,$2,$ac_extra,)
++-        EXT_STATIC="$EXT_STATIC $1;$ext_dir"
++-        ;;
++-      *[)]
++         PHP_ADD_SOURCES($ext_dir,$2,$ac_extra,cli)
++-        ;;
++-    esac
+++        PHP_ADD_SOURCES($ext_dir,$2,$ac_extra,cgi)
+++        PHP_ADD_SOURCES($ext_dir,$2,$ac_extra,fpm)
++     EXT_CLI_STATIC="$EXT_CLI_STATIC $1;$ext_dir"
++   fi
++   PHP_ADD_BUILD_DIR($ext_builddir)
++@@ -1043,12 +1037,6 @@ You either need to build $1 shared or build $2 statica
++ build to be successful.
++ ])
++   fi
++-  if test "x$is_it_enabled" = "xno" && test "x$3" != "xtrue"; then
++-    AC_MSG_ERROR([
++-You've configured extension $1, which depends on extension $2,
++-but you've either not enabled $2, or have disabled it.
++-])
++-  fi
++   dnl Some systems require that we link $2 to $1 when building
++ ])
++ 
++@@ -2324,9 +2312,9 @@ AC_DEFUN([PHP_SETUP_OPENSSL],[
++   test -z "$PHP_IMAP_SSL" && PHP_IMAP_SSL=no
++ 
++   dnl Fallbacks for different configure options
++-  if test "$PHP_OPENSSL" != "no"; then
+++  if test -n "$PHP_OPENSSL" && test "$PHP_OPENSSL" != "no"; then
++     PHP_OPENSSL_DIR=$PHP_OPENSSL
++-  elif test "$PHP_IMAP_SSL" != "no"; then
+++  elif test -n "$PHP_IMAP_SSL" && test "$PHP_IMAP_SSL" != "no"; then
++     PHP_OPENSSL_DIR=$PHP_IMAP_SSL
++   fi
++ 
+diff --git a/lang/php/7.1/patches/patch-aclocal_m4 b/lang/php/7.1/patches/patch-aclocal_m4
+new file mode 100644
+index 00000000000..adf284812db
+--- /dev/null
++++ b/lang/php/7.1/patches/patch-aclocal_m4
+@@ -0,0 +1,13 @@
++$OpenBSD$
++Index: aclocal.m4
++--- aclocal.m4.orig
+++++ aclocal.m4
++@@ -2337,7 +2337,7 @@ AC_DEFUN([PHP_SETUP_OPENSSL],[
++ 
++   dnl If pkg-config is found try using it
++   if test "$PHP_OPENSSL_DIR" = "yes" && test -x "$PKG_CONFIG" && $PKG_CONFIG --exists openssl; then
++-    if $PKG_CONFIG --atleast-version=1.0.1 openssl; then
+++    if $PKG_CONFIG --atleast-version=1.0.0 openssl; then
++       found_openssl=yes
++       OPENSSL_LIBS=`$PKG_CONFIG --libs openssl`
++       OPENSSL_INCS=`$PKG_CONFIG --cflags-only-I openssl`
+diff --git a/lang/php/7.1/patches/patch-configure_in b/lang/php/7.1/patches/patch-configure_in
+new file mode 100644
+index 00000000000..ab33a47663f
+--- /dev/null
++++ b/lang/php/7.1/patches/patch-configure_in
+@@ -0,0 +1,33 @@
++$OpenBSD: patch-configure_in,v 1.2 2016/03/01 21:58:25 robert Exp $
++Index: configure.in
++--- configure.in.orig
+++++ configure.in
++@@ -1052,16 +1052,16 @@ case $php_sapi_module in
++     enable_static=no
++     case $with_pic in
++       yes)
++-        standard_libtool_flag='-prefer-pic'
+++        standard_libtool_flag=''
++         ;;
++       no)
++-        standard_libtool_flag='-prefer-non-pic'
+++        standard_libtool_flag=''
++         ;;
++     esac
++     EXTRA_LDFLAGS="$EXTRA_LDFLAGS -avoid-version -module"
++     ;;
++   *[)]
++-    standard_libtool_flag='-prefer-non-pic -static'
+++    standard_libtool_flag=''
++     if test -z "$PHP_MODULES" && test -z "$PHP_ZEND_EX"; then
++       enable_shared=no
++     fi
++@@ -1252,7 +1252,7 @@ EXPANDED_SYSCONFDIR=`eval echo $sysconfdir`
++ EXPANDED_DATADIR=$datadir
++ EXPANDED_PHP_CONFIG_FILE_PATH=`eval echo "$PHP_CONFIG_FILE_PATH"`
++ EXPANDED_PHP_CONFIG_FILE_SCAN_DIR=`eval echo "$PHP_CONFIG_FILE_SCAN_DIR"`
++-INCLUDE_PATH=.:$EXPANDED_PEAR_INSTALLDIR
+++INCLUDE_PATH=.:$libdir
++ 
++ exec_prefix=$old_exec_prefix
++ libdir=$old_libdir
+diff --git a/lang/php/7.1/patches/patch-ext_gd_config_m4 b/lang/php/7.1/patches/patch-ext_gd_config_m4
+new file mode 100644
+index 00000000000..9d0e924cede
+--- /dev/null
++++ b/lang/php/7.1/patches/patch-ext_gd_config_m4
+@@ -0,0 +1,28 @@
++$OpenBSD: patch-ext_gd_config_m4,v 1.1.1.1 2015/12/14 17:58:45 robert Exp $
++
++revert https://github.com/php/php-src/commit/5e9c6c3b644b290255fb10c8eb34778665c2f8a3.patch
++which breaks things for finding /usr/X11R6/include/X11/xpm.h
++
++--- ext/gd/config.m4.orig.port	Tue Dec  1 14:36:33 2015
+++++ ext/gd/config.m4	Sun Dec  6 14:04:50 2015
++@@ -163,11 +163,18 @@ AC_DEFUN([PHP_GD_XPM],[
++   if test "$PHP_XPM_DIR" != "no"; then
++ 
++     for i in $PHP_XPM_DIR /usr/local /usr/X11R6 /usr; do
++-      test -f $i/include/xpm.h && GD_XPM_DIR=$i && GD_XPM_INC=$i && break
++-      test -f $i/include/X11/xpm.h && GD_XPM_DIR=$i && GD_XPM_INC=$i/X11 && break
+++      test -f $i/$PHP_LIBDIR/libXpm.$SHLIB_SUFFIX_NAME || test -f $i/$PHP_LIBDIR/libXpm.a && GD_XPM_DIR=$i && break
++     done
++ 
++     if test -z "$GD_XPM_DIR"; then
+++      AC_MSG_ERROR([libXpm.(a|so) not found.])
+++    fi
+++
+++    for i in include include/X11; do
+++      test -f $GD_XPM_DIR/$i/xpm.h && GD_XPM_INC=$GD_XPM_DIR/include
+++    done
+++
+++    if test -z "$GD_XPM_INC"; then
++       AC_MSG_ERROR([xpm.h not found.])
++     fi
++ 
+diff --git a/lang/php/7.1/patches/patch-ext_gd_gdcache_h b/lang/php/7.1/patches/patch-ext_gd_gdcache_h
+new file mode 100644
+index 00000000000..d810c7c1511
+--- /dev/null
++++ b/lang/php/7.1/patches/patch-ext_gd_gdcache_h
+@@ -0,0 +1,11 @@
++$OpenBSD: patch-ext_gd_gdcache_h,v 1.1.1.1 2015/12/14 17:58:45 robert Exp $
++--- ext/gd/gdcache.h.orig.port	Wed Sep 26 16:44:16 2007
+++++ ext/gd/gdcache.h	Sat Jun 18 12:14:48 2011
++@@ -41,6 +41,7 @@
++ /*********************************************************/
++ 
++ #if (!defined(_OSD_POSIX) && !defined(__FreeBSD__)) && HAVE_MALLOC_H
+++#elif !defined(__OpenBSD__)
++ #include <malloc.h>
++ #else
++ #include <stdlib.h> /* BS2000/OSD defines malloc() & friends in stdlib.h */
+diff --git a/lang/php/7.1/patches/patch-ext_gd_libgd_gdkanji_c b/lang/php/7.1/patches/patch-ext_gd_libgd_gdkanji_c
+new file mode 100644
+index 00000000000..aa54709947f
+--- /dev/null
++++ b/lang/php/7.1/patches/patch-ext_gd_libgd_gdkanji_c
+@@ -0,0 +1,12 @@
++$OpenBSD: patch-ext_gd_libgd_gdkanji_c,v 1.1.1.1 2015/12/14 17:58:45 robert Exp $
++--- ext/gd/libgd/gdkanji.c.orig.port	Tue Dec  1 14:36:33 2015
+++++ ext/gd/libgd/gdkanji.c	Sun Dec  6 14:04:50 2015
++@@ -361,7 +361,7 @@ do_convert (unsigned char *to, unsigned char *from, co
++   from_len = strlen ((const char *) from) + 1;
++   to_len = BUFSIZ;
++ 
++-  if ((int) iconv(cd, (char **) &from, &from_len, (char **) &to, &to_len) == -1)
+++  if ((int) iconv(cd, (const char **) &from, &from_len, (char **) &to, &to_len) == -1)
++     {
++ #ifdef HAVE_ERRNO_H
++       if (errno == EINVAL)
+diff --git a/lang/php/7.1/patches/patch-ext_iconv_iconv_c b/lang/php/7.1/patches/patch-ext_iconv_iconv_c
+new file mode 100644
+index 00000000000..a8d24ed0b93
+--- /dev/null
++++ b/lang/php/7.1/patches/patch-ext_iconv_iconv_c
+@@ -0,0 +1,75 @@
++$OpenBSD: patch-ext_iconv_iconv_c,v 1.1.1.1 2015/12/14 17:58:45 robert Exp $
++--- ext/iconv/iconv.c.orig.port	Fri Dec  2 03:07:40 2016
+++++ ext/iconv/iconv.c	Thu Dec  8 11:21:26 2016
++@@ -471,7 +471,7 @@ static php_iconv_err_t _php_iconv_appendl(smart_str *d
++ 
++ 			out_p = ZSTR_VAL((d)->s) + ZSTR_LEN((d)->s);
++ 
++-			if (iconv(cd, (char **)&in_p, &in_left, (char **) &out_p, &out_left) == (size_t)-1) {
+++			if (iconv(cd, (const char **)&in_p, &in_left, (char **) &out_p, &out_left) == (size_t)-1) {
++ #if ICONV_SUPPORTS_ERRNO
++ 				switch (errno) {
++ 					case EINVAL:
++@@ -651,7 +651,7 @@ PHP_ICONV_API php_iconv_err_t php_iconv_string(const c
++ 	out_p = ZSTR_VAL(out_buf);
++ 
++ 	while (in_left > 0) {
++-		result = iconv(cd, (char **) &in_p, &in_left, (char **) &out_p, &out_left);
+++		result = iconv(cd, (const char **) &in_p, &in_left, (char **) &out_p, &out_left);
++ 		out_size = bsz - out_left;
++ 		if (result == (size_t)(-1)) {
++ 			if (ignore_ilseq && errno == EILSEQ) {
++@@ -775,7 +775,7 @@ static php_iconv_err_t _php_iconv_strlen(size_t *pretv
++ 
++ 		prev_in_left = in_left;
++ 
++-		if (iconv(cd, (char **)&in_p, &in_left, (char **) &out_p, &out_left) == (size_t)-1) {
+++		if (iconv(cd, (const char **)&in_p, &in_left, (char **) &out_p, &out_left) == (size_t)-1) {
++ 			if (prev_in_left == in_left) {
++ 				break;
++ 			}
++@@ -896,7 +896,7 @@ static php_iconv_err_t _php_iconv_substr(smart_str *pr
++ 
++ 		prev_in_left = in_left;
++ 
++-		if (iconv(cd1, (char **)&in_p, &in_left, (char **) &out_p, &out_left) == (size_t)-1) {
+++		if (iconv(cd1, (const char **)&in_p, &in_left, (char **) &out_p, &out_left) == (size_t)-1) {
++ 			if (prev_in_left == in_left) {
++ 				break;
++ 			}
++@@ -1027,7 +1027,7 @@ static php_iconv_err_t _php_iconv_strpos(size_t *pretv
++ 
++ 		prev_in_left = in_left;
++ 
++-		if (iconv(cd, (char **)&in_p, &in_left, (char **) &out_p, &out_left) == (size_t)-1) {
+++		if (iconv(cd, (const char **)&in_p, &in_left, (char **) &out_p, &out_left) == (size_t)-1) {
++ 			if (prev_in_left == in_left) {
++ #if ICONV_SUPPORTS_ERRNO
++ 				switch (errno) {
++@@ -1274,7 +1274,7 @@ static php_iconv_err_t _php_iconv_mime_encode(smart_st
++ 
++ 					out_left = out_size - out_reserved;
++ 
++-					if (iconv(cd, (char **)&in_p, &in_left, (char **) &out_p, &out_left) == (size_t)-1) {
+++					if (iconv(cd, (const char **)&in_p, &in_left, (char **) &out_p, &out_left) == (size_t)-1) {
++ #if ICONV_SUPPORTS_ERRNO
++ 						switch (errno) {
++ 							case EINVAL:
++@@ -1375,7 +1375,7 @@ static php_iconv_err_t _php_iconv_mime_encode(smart_st
++ 					out_p = buf;
++ 					out_left = out_size;
++ 
++-					if (iconv(cd, (char **)&in_p, &in_left, (char **) &out_p, &out_left) == (size_t)-1) {
+++					if (iconv(cd, (const char **)&in_p, &in_left, (char **) &out_p, &out_left) == (size_t)-1) {
++ #if ICONV_SUPPORTS_ERRNO
++ 						switch (errno) {
++ 							case EINVAL:
++@@ -2634,7 +2634,7 @@ static int php_iconv_stream_filter_append_bucket(
++ 		tcnt = self->stub_len;
++ 
++ 		while (tcnt > 0) {
++-			if (iconv(self->cd, &pt, &tcnt, &pd, &ocnt) == (size_t)-1) {
+++			if (iconv(self->cd, (const char **)&pt, &tcnt, &pd, &ocnt) == (size_t)-1) {
++ #if ICONV_SUPPORTS_ERRNO
++ 				switch (errno) {
++ 					case EILSEQ:
+diff --git a/lang/php/7.1/patches/patch-ext_imap_config_m4 b/lang/php/7.1/patches/patch-ext_imap_config_m4
+new file mode 100644
+index 00000000000..6e2954ceb8d
+--- /dev/null
++++ b/lang/php/7.1/patches/patch-ext_imap_config_m4
+@@ -0,0 +1,12 @@
++$OpenBSD: patch-ext_imap_config_m4,v 1.1.1.1 2015/12/14 17:58:45 robert Exp $
++--- ext/imap/config.m4.orig.port	Thu Aug  8 16:50:57 2013
+++++ ext/imap/config.m4	Thu Aug  8 16:51:34 2013
++@@ -180,7 +180,7 @@ if test "$PHP_IMAP" != "no"; then  
++     ],[])
++     CPPFLAGS=$old_CPPFLAGS
++ 
++-    PHP_CHECK_LIBRARY(pam, pam_start, 
+++    PHP_CHECK_LIBRARY(pam, DISABLEDpam_start, 
++     [
++       PHP_ADD_LIBRARY(pam,, IMAP_SHARED_LIBADD)
++       AC_DEFINE(HAVE_LIBPAM,1,[ ])
+diff --git a/lang/php/7.1/patches/patch-ext_mysqlnd_config9_m4 b/lang/php/7.1/patches/patch-ext_mysqlnd_config9_m4
+new file mode 100644
+index 00000000000..25b13445725
+--- /dev/null
++++ b/lang/php/7.1/patches/patch-ext_mysqlnd_config9_m4
+@@ -0,0 +1,20 @@
++$OpenBSD: patch-ext_mysqlnd_config9_m4,v 1.1.1.1 2015/12/14 17:58:45 robert Exp $
++--- ext/mysqlnd/config9.m4.orig.port	Fri Dec  2 03:07:42 2016
+++++ ext/mysqlnd/config9.m4	Thu Dec  8 11:21:26 2016
++@@ -16,6 +16,7 @@ if test -z "$PHP_ZLIB_DIR"; then
++ fi
++ 
++ dnl If some extension uses mysqlnd it will get compiled in PHP core
+++PHP_MYSQLND_ENABLED="yes"
++ if test "$PHP_MYSQLND" != "no" || test "$PHP_MYSQLND_ENABLED" = "yes"; then
++   mysqlnd_ps_sources="mysqlnd_ps.c mysqlnd_ps_codec.c"
++   mysqlnd_base_sources="mysqlnd_connection.c mysqlnd_alloc.c mysqlnd_charset.c mysqlnd_wireprotocol.c \
++@@ -34,7 +35,7 @@ if test "$PHP_MYSQLND" != "no" || test "$PHP_MYSQLND_E
++   test -z "$PHP_OPENSSL" && PHP_OPENSSL=no
++ 
++   if test "$PHP_OPENSSL" != "no" || test "$PHP_OPENSSL_DIR" != "no"; then
++-    AC_CHECK_LIB(ssl, DSA_get_default_method, AC_DEFINE(HAVE_DSA_DEFAULT_METHOD, 1, [OpenSSL 0.9.7 or later]))
+++    AC_CHECK_LIB(ssl, DSA_get_default_method, AC_DEFINE(HAVE_DSA_DEFAULT_METHOD, 1, [OpenSSL 0.9.7 or later]),, [-lcrypto])
++     AC_CHECK_LIB(crypto, X509_free, AC_DEFINE(HAVE_DSA_DEFAULT_METHOD, 1, [OpenSSL 0.9.7 or later]))
++ 
++     PHP_SETUP_OPENSSL(MYSQLND_SHARED_LIBADD, [AC_DEFINE(MYSQLND_HAVE_SSL,1,[Enable mysqlnd code that uses OpenSSL directly])])
+diff --git a/lang/php/7.1/patches/patch-ext_odbc_config_m4 b/lang/php/7.1/patches/patch-ext_odbc_config_m4
+new file mode 100644
+index 00000000000..2758fb01b99
+--- /dev/null
++++ b/lang/php/7.1/patches/patch-ext_odbc_config_m4
+@@ -0,0 +1,14 @@
++$OpenBSD: patch-ext_odbc_config_m4,v 1.1.1.1 2015/12/14 17:58:45 robert Exp $
++
++don't link php binary with iodbc
++
++--- ext/odbc/config.m4.orig.port	Wed Apr 15 20:05:57 2015
+++++ ext/odbc/config.m4	Sat Apr 25 18:10:11 2015
++@@ -396,7 +396,6 @@ PHP_ARG_WITH(iodbc,,
++       AC_PATH_PROG(PKG_CONFIG, pkg-config, no)
++     fi 
++     if test -x "$PKG_CONFIG" && $PKG_CONFIG --exists libiodbc ; then
++-      PHP_ADD_LIBRARY_WITH_PATH(iodbc, $PHP_IODBC/$PHP_LIBDIR)
++       ODBC_TYPE=iodbc
++       ODBC_INCLUDE=`$PKG_CONFIG --cflags-only-I libiodbc`
++       ODBC_LFLAGS=`$PKG_CONFIG --libs-only-L libiodbc`
+diff --git a/lang/php/7.1/patches/patch-ext_pcre_php_pcre_c b/lang/php/7.1/patches/patch-ext_pcre_php_pcre_c
+new file mode 100644
+index 00000000000..0477e9f1341
+--- /dev/null
++++ b/lang/php/7.1/patches/patch-ext_pcre_php_pcre_c
+@@ -0,0 +1,12 @@
++$OpenBSD: patch-ext_pcre_php_pcre_c,v 1.2 2016/10/31 15:06:10 robert Exp $
++--- ext/pcre/php_pcre.c.orig.port	Fri Dec  2 03:07:45 2016
+++++ ext/pcre/php_pcre.c	Thu Dec  8 11:21:26 2016
++@@ -148,7 +148,7 @@ PHP_INI_BEGIN()
++ 	STD_PHP_INI_ENTRY("pcre.backtrack_limit", "1000000", PHP_INI_ALL, OnUpdateLong, backtrack_limit, zend_pcre_globals, pcre_globals)
++ 	STD_PHP_INI_ENTRY("pcre.recursion_limit", "100000",  PHP_INI_ALL, OnUpdateLong, recursion_limit, zend_pcre_globals, pcre_globals)
++ #ifdef HAVE_PCRE_JIT_SUPPORT
++-	STD_PHP_INI_ENTRY("pcre.jit",             "1",       PHP_INI_ALL, OnUpdateBool, jit,             zend_pcre_globals, pcre_globals)
+++	STD_PHP_INI_ENTRY("pcre.jit",             "0",       PHP_INI_ALL, OnUpdateBool, jit,             zend_pcre_globals, pcre_globals)
++ #endif
++ PHP_INI_END()
++ 
+diff --git a/lang/php/7.1/patches/patch-ext_sockets_sockaddr_conv_c b/lang/php/7.1/patches/patch-ext_sockets_sockaddr_conv_c
+new file mode 100644
+index 00000000000..b849c656b61
+--- /dev/null
++++ b/lang/php/7.1/patches/patch-ext_sockets_sockaddr_conv_c
+@@ -0,0 +1,14 @@
++$OpenBSD: patch-ext_sockets_sockaddr_conv_c,v 1.1.1.1 2015/12/14 17:58:45 robert Exp $
++--- ext/sockets/sockaddr_conv.c.orig.port	Tue Dec  1 14:36:34 2015
+++++ ext/sockets/sockaddr_conv.c	Sun Dec  6 14:04:50 2015
++@@ -11,6 +11,10 @@
++ 
++ extern int php_string_to_if_index(const char *val, unsigned *out);
++ 
+++#if defined(__OpenBSD__)
+++#define AI_V4MAPPED 0
+++#endif
+++
++ #if HAVE_IPV6
++ /* Sets addr by hostname, or by ip in string form (AF_INET6) */
++ int php_set_inet6_addr(struct sockaddr_in6 *sin6, char *string, php_socket *php_sock) /* {{{ */
+diff --git a/lang/php/7.1/patches/patch-ext_spl_php_spl_c b/lang/php/7.1/patches/patch-ext_spl_php_spl_c
+new file mode 100644
+index 00000000000..85d99204bb1
+--- /dev/null
++++ b/lang/php/7.1/patches/patch-ext_spl_php_spl_c
+@@ -0,0 +1,24 @@
++$OpenBSD: patch-ext_spl_php_spl_c,v 1.3 2016/05/06 19:59:05 sthen Exp $
++Index: ext/spl/php_spl.c
++--- ext/spl/php_spl.c.orig
+++++ ext/spl/php_spl.c
++@@ -779,15 +779,15 @@ PHP_FUNCTION(spl_object_hash)
++ 
++ PHPAPI zend_string *php_spl_object_hash(zval *obj) /* {{{*/
++ {
++-	intptr_t hash_handle, hash_handlers;
+++	zend_intptr_t hash_handle, hash_handlers;
++ 
++ 	if (!SPL_G(hash_mask_init)) {
++-		SPL_G(hash_mask_handle)   = (intptr_t)(php_mt_rand() >> 1);
++-		SPL_G(hash_mask_handlers) = (intptr_t)(php_mt_rand() >> 1);
+++		SPL_G(hash_mask_handle)   = (zend_intptr_t)(php_mt_rand() >> 1);
+++		SPL_G(hash_mask_handlers) = (zend_intptr_t)(php_mt_rand() >> 1);
++ 		SPL_G(hash_mask_init) = 1;
++ 	}
++ 
++-	hash_handle   = SPL_G(hash_mask_handle)^(intptr_t)Z_OBJ_HANDLE_P(obj);
+++	hash_handle   = SPL_G(hash_mask_handle)^(zend_intptr_t)Z_OBJ_HANDLE_P(obj);
++ 	hash_handlers = SPL_G(hash_mask_handlers);
++ 
++ 	return strpprintf(32, "%016zx%016zx", hash_handle, hash_handlers);
+diff --git a/lang/php/7.1/patches/patch-ext_spl_php_spl_h b/lang/php/7.1/patches/patch-ext_spl_php_spl_h
+new file mode 100644
+index 00000000000..b850d7b1ed0
+--- /dev/null
++++ b/lang/php/7.1/patches/patch-ext_spl_php_spl_h
+@@ -0,0 +1,14 @@
++$OpenBSD: patch-ext_spl_php_spl_h,v 1.1.1.1 2015/12/14 17:58:45 robert Exp $
++--- ext/spl/php_spl.h.orig.port	Sun Dec  6 14:09:13 2015
+++++ ext/spl/php_spl.h	Sun Dec  6 14:09:25 2015
++@@ -62,8 +62,8 @@ PHP_MINFO_FUNCTION(spl);
++ ZEND_BEGIN_MODULE_GLOBALS(spl)
++ 	zend_string *autoload_extensions;
++ 	HashTable   *autoload_functions;
++-	intptr_t     hash_mask_handle;
++-	intptr_t     hash_mask_handlers;
+++	zend_intptr_t     hash_mask_handle;
+++	zend_intptr_t     hash_mask_handlers;
++ 	int          hash_mask_init;
++ 	int          autoload_running;
++ ZEND_END_MODULE_GLOBALS(spl)
+diff --git a/lang/php/7.1/patches/patch-ext_standard_config_m4 b/lang/php/7.1/patches/patch-ext_standard_config_m4
+new file mode 100644
+index 00000000000..e043008de33
+--- /dev/null
++++ b/lang/php/7.1/patches/patch-ext_standard_config_m4
+@@ -0,0 +1,29 @@
++$OpenBSD$
++
++Index: ext/standard/config.m4
++--- ext/standard/config.m4.orig
+++++ ext/standard/config.m4
++@@ -340,17 +340,17 @@ dnl
++ dnl Detect library functions needed by php dns_xxx functions
++ dnl ext/standard/php_dns.h will collect these in a single define: HAVE_FULL_DNS_FUNCS
++ dnl
++-PHP_CHECK_FUNC(res_nsearch, resolv, bind, socket)
++-PHP_CHECK_FUNC(res_ndestroy, resolv, bind, socket)
++-PHP_CHECK_FUNC(dns_search, resolv, bind, socket)
++-PHP_CHECK_FUNC(dn_expand, resolv, bind, socket)
++-PHP_CHECK_FUNC(dn_skipname, resolv, bind, socket)
+++PHP_CHECK_FUNC(res_nsearch, resolv, socket)
+++PHP_CHECK_FUNC(res_ndestroy, resolv, socket)
+++PHP_CHECK_FUNC(dns_search, resolv, socket)
+++PHP_CHECK_FUNC(dn_expand, resolv, socket)
+++PHP_CHECK_FUNC(dn_skipname, resolv, socket)
++ 
++ dnl
++ dnl These are old deprecated functions
++ dnl
++ 
++-PHP_CHECK_FUNC(res_search, resolv, bind, socket)
+++PHP_CHECK_FUNC(res_search, resolv, socket)
++ 
++ dnl
++ dnl Check if atof() accepts NAN
+diff --git a/lang/php/7.1/patches/patch-ext_tidy_config_m4 b/lang/php/7.1/patches/patch-ext_tidy_config_m4
+new file mode 100644
+index 00000000000..369faf4d6ed
+--- /dev/null
++++ b/lang/php/7.1/patches/patch-ext_tidy_config_m4
+@@ -0,0 +1,31 @@
++$OpenBSD: patch-ext_tidy_config_m4,v 1.1.1.1 2015/12/14 17:58:46 robert Exp $
++--- ext/tidy/config.m4.orig.port	Fri Dec  2 03:07:44 2016
+++++ ext/tidy/config.m4	Thu Dec  8 11:26:44 2016
++@@ -14,12 +14,12 @@ if test "$PHP_TIDY" != "no"; then
++   fi
++ 
++   for i in $TIDY_SEARCH_DIRS; do
++-    if test -f $i/include/tidy/tidy.h; then
+++    if test -f $i/include/tidyp/tidyp.h; then
++       TIDY_DIR=$i
++-      TIDY_INCDIR=$i/include/tidy
++-    elif test -f $i/include/tidy.h; then
+++      TIDY_INCDIR=$i/include/tidyp
+++    elif test -f $i/include/tidyp.h; then
++       TIDY_DIR=$i
++-      TIDY_INCDIR=$i/include
+++      TIDY_INCDIR=$i/include/tidyp
++     fi
++   done
++ 
++@@ -37,8 +37,8 @@ if test "$PHP_TIDY" != "no"; then
++ 
++   TIDY_LIBDIR=$TIDY_DIR/$PHP_LIBDIR
++ 
++-  TIDY_LIB_NAME=tidy
++-  PHP_CHECK_LIBRARY(tidy,tidyOptGetDoc,
+++  TIDY_LIB_NAME=tidyp
+++  PHP_CHECK_LIBRARY(tidyp,tidyOptGetDoc,
++   [
++     AC_DEFINE(HAVE_TIDYOPTGETDOC,1,[ ])
++   ],[
+diff --git a/lang/php/7.1/patches/patch-ext_tidy_tidy_c b/lang/php/7.1/patches/patch-ext_tidy_tidy_c
+new file mode 100644
+index 00000000000..f57f006e354
+--- /dev/null
++++ b/lang/php/7.1/patches/patch-ext_tidy_tidy_c
+@@ -0,0 +1,12 @@
++$OpenBSD: patch-ext_tidy_tidy_c,v 1.1.1.1 2015/12/14 17:58:46 robert Exp $
++--- ext/tidy/tidy.c.orig.port	Fri Dec  2 03:07:44 2016
+++++ ext/tidy/tidy.c	Thu Dec  8 11:27:18 2016
++@@ -30,7 +30,7 @@
++ #include "php_ini.h"
++ #include "ext/standard/info.h"
++ 
++-#include "tidy.h"
+++#include "tidyp.h"
++ 
++ #if HAVE_TIDYBUFFIO_H
++ #include "tidybuffio.h"
+diff --git a/lang/php/7.1/patches/patch-ext_xmlrpc_libxmlrpc_encodings_c b/lang/php/7.1/patches/patch-ext_xmlrpc_libxmlrpc_encodings_c
+new file mode 100644
+index 00000000000..10021d56fd4
+--- /dev/null
++++ b/lang/php/7.1/patches/patch-ext_xmlrpc_libxmlrpc_encodings_c
+@@ -0,0 +1,12 @@
++$OpenBSD: patch-ext_xmlrpc_libxmlrpc_encodings_c,v 1.1.1.1 2015/12/14 17:58:45 robert Exp $
++--- ext/xmlrpc/libxmlrpc/encodings.c.orig.port	Tue Dec  1 14:36:35 2015
+++++ ext/xmlrpc/libxmlrpc/encodings.c	Sun Dec  6 14:04:50 2015
++@@ -79,7 +79,7 @@ static char* convert(const char* src, int src_len, int
++          if(outbuf) {
++             out_ptr = (char*)outbuf;
++             while(inlenleft) {
++-               st = iconv(ic, (char**)&src, &inlenleft, &out_ptr, &outlenleft);
+++               st = iconv(ic, (const char**)&src, &inlenleft, &out_ptr, &outlenleft);
++                if(st == -1) {
++                   if(errno == E2BIG) {
++                      int diff = out_ptr - outbuf;
+diff --git a/lang/php/7.1/patches/patch-main_php_h b/lang/php/7.1/patches/patch-main_php_h
+new file mode 100644
+index 00000000000..5d0268875ab
+--- /dev/null
++++ b/lang/php/7.1/patches/patch-main_php_h
+@@ -0,0 +1,14 @@
++$OpenBSD: patch-main_php_h,v 1.1.1.1 2015/12/14 17:58:46 robert Exp $
++Index: main/php.h
++--- main/php.h.orig
+++++ main/php.h
++@@ -146,7 +146,9 @@ END_EXTERN_C()
++ # ifdef PHP_WIN32
++ typedef int socklen_t;
++ # else
+++#   if !defined(__OpenBSD__)
++ typedef unsigned int socklen_t;
+++#   endif
++ # endif
++ #endif
++ 
+diff --git a/lang/php/7.1/patches/patch-main_php_ini_c b/lang/php/7.1/patches/patch-main_php_ini_c
+new file mode 100644
+index 00000000000..52ee37f8ffe
+--- /dev/null
++++ b/lang/php/7.1/patches/patch-main_php_ini_c
+@@ -0,0 +1,13 @@
++$OpenBSD: patch-main_php_ini_c,v 1.1.1.1 2015/12/14 17:58:46 robert Exp $
++Index: main/php_ini.c
++--- main/php_ini.c.orig
+++++ main/php_ini.c
++@@ -574,7 +574,7 @@ int php_init_config(void)
++ 
++ 		/* If still no ini file found, search for php.ini file in search path */
++ 		if (!fh.handle.fp) {
++-			fh.handle.fp = php_fopen_with_path("php.ini", "r", php_ini_search_path, &opened_path);
+++			fh.handle.fp = php_fopen_with_path("php-${PV}.ini", "r", php_ini_search_path, &opened_path);
++ 			if (fh.handle.fp) {
++ 				fh.filename = ZSTR_VAL(opened_path);
++ 			}
+diff --git a/lang/php/7.1/patches/patch-main_php_open_temporary_file_c b/lang/php/7.1/patches/patch-main_php_open_temporary_file_c
+new file mode 100644
+index 00000000000..0781ea95413
+--- /dev/null
++++ b/lang/php/7.1/patches/patch-main_php_open_temporary_file_c
+@@ -0,0 +1,12 @@
++$OpenBSD: patch-main_php_open_temporary_file_c,v 1.1.1.1 2015/12/14 17:58:46 robert Exp $
++--- main/php_open_temporary_file.c.orig.port	Fri Dec  2 03:07:47 2016
+++++ main/php_open_temporary_file.c	Thu Dec  8 11:28:39 2016
++@@ -146,7 +146,7 @@ static int php_do_open_temporary_file(const char *path
++ 	}
++ 
++ #ifndef PHP_WIN32
++-	if (snprintf(opened_path, MAXPATHLEN, "%s%s%sXXXXXX", new_state.cwd, trailing_slash, pfx) >= MAXPATHLEN) {
+++	if (snprintf(opened_path, MAXPATHLEN, "%s%s%sXXXXXXXXXX", new_state.cwd, trailing_slash, pfx) >= MAXPATHLEN) {
++ 		efree(new_state.cwd);
++ 		return -1;
++ 	}
+diff --git a/lang/php/7.1/patches/patch-main_streams_php_stream_transport_h b/lang/php/7.1/patches/patch-main_streams_php_stream_transport_h
+new file mode 100644
+index 00000000000..42a279bfc59
+--- /dev/null
++++ b/lang/php/7.1/patches/patch-main_streams_php_stream_transport_h
+@@ -0,0 +1,33 @@
++$OpenBSD: patch-main_streams_php_stream_transport_h,v 1.1.1.1 2015/12/14 17:58:46 robert Exp $
++
++Real world apps and PHP source code (e.g. SOAP, mysqlnd) just use
++STREAM_CRYPTO_METHOD_TLS_CLIENT expecting this to give them "the best
++TLS version". Allow this to do what they expect.
++
++Remove useless STREAM_CRYPTO_METHOD_TLS_ANY_* which aren't used anywhere
++or exported to the parser.
++
++--- main/streams/php_stream_transport.h.orig.port	Tue Dec  1 14:36:43 2015
+++++ main/streams/php_stream_transport.h	Sun Dec  6 14:04:50 2015
++@@ -172,9 +172,7 @@ typedef enum {
++ 	STREAM_CRYPTO_METHOD_TLSv1_0_CLIENT = (1 << 3 | 1),
++ 	STREAM_CRYPTO_METHOD_TLSv1_1_CLIENT = (1 << 4 | 1),
++ 	STREAM_CRYPTO_METHOD_TLSv1_2_CLIENT = (1 << 5 | 1),
++-	/* tls now equates only to the specific TLSv1 method for BC with pre-5.6 */
++-	STREAM_CRYPTO_METHOD_TLS_CLIENT = (1 << 3 | 1),
++-	STREAM_CRYPTO_METHOD_TLS_ANY_CLIENT = ((1 << 3) | (1 << 4) | (1 << 5) | 1),
+++	STREAM_CRYPTO_METHOD_TLS_CLIENT = ((1 << 3) | (1 << 4) | (1 << 5) | 1),
++ 	STREAM_CRYPTO_METHOD_ANY_CLIENT = ((1 << 1) | (1 << 2) | (1 << 3) | (1 << 4) | (1 << 5) | 1),
++ 	STREAM_CRYPTO_METHOD_SSLv2_SERVER = (1 << 1),
++ 	STREAM_CRYPTO_METHOD_SSLv3_SERVER = (1 << 2),
++@@ -183,9 +181,7 @@ typedef enum {
++ 	STREAM_CRYPTO_METHOD_TLSv1_0_SERVER = (1 << 3),
++ 	STREAM_CRYPTO_METHOD_TLSv1_1_SERVER = (1 << 4),
++ 	STREAM_CRYPTO_METHOD_TLSv1_2_SERVER = (1 << 5),
++-	/* tls equates only to the specific TLSv1 method for BC with pre-5.6 */
++-	STREAM_CRYPTO_METHOD_TLS_SERVER = (1 << 3),
++-	STREAM_CRYPTO_METHOD_TLS_ANY_SERVER = ((1 << 3) | (1 << 4) | (1 << 5)),
+++	STREAM_CRYPTO_METHOD_TLS_SERVER = ((1 << 3) | (1 << 4) | (1 << 5)),
++ 	STREAM_CRYPTO_METHOD_ANY_SERVER = ((1 << 1) | (1 << 2) | (1 << 3) | (1 << 4) | (1 << 5))
++ } php_stream_xport_crypt_method_t;
++ 
+diff --git a/lang/php/7.1/patches/patch-php_ini-development b/lang/php/7.1/patches/patch-php_ini-development
+new file mode 100644
+index 00000000000..53324cf5f1d
+--- /dev/null
++++ b/lang/php/7.1/patches/patch-php_ini-development
+@@ -0,0 +1,59 @@
++$OpenBSD: patch-php_ini-development,v 1.5 2016/10/31 15:06:10 robert Exp $
++--- php.ini-development.orig.port	Fri Dec  2 03:07:37 2016
+++++ php.ini-development	Thu Dec  8 11:21:27 2016
++@@ -710,11 +710,8 @@ default_charset = "UTF-8"
++ ;;;;;;;;;;;;;;;;;;;;;;;;;
++ 
++ ; UNIX: "/path1:/path2"
++-;include_path = ".:/php/includes"
+++include_path = ".:OPENBSD_INCLUDE_PATH"
++ ;
++-; Windows: "\path1;\path2"
++-;include_path = ".;c:\php\includes"
++-;
++ ; PHP's default setting for include_path is ".;/path/to/php/pear"
++ ; http://php.net/include-path
++ 
++@@ -736,6 +733,7 @@ user_dir =
++ ; extension_dir = "./"
++ ; On windows:
++ ; extension_dir = "ext"
+++extension_dir = "MODULES_DIR"
++ 
++ ; Directory where the temporary files should be placed.
++ ; Defaults to the system default (see sys_get_temp_dir)
++@@ -832,7 +830,7 @@ max_file_uploads = 20
++ 
++ ; Whether to allow the treatment of URLs (like http:// or ftp://) as files.
++ ; http://php.net/allow-url-fopen
++-allow_url_fopen = On
+++allow_url_fopen = Off
++ 
++ ; Whether to allow include/require to open URLs (like http:// or ftp://) as files.
++ ; http://php.net/allow-url-include
++@@ -936,7 +934,7 @@ cli_server.color = On
++ [Date]
++ ; Defines the default timezone used by the date functions
++ ; http://php.net/date.timezone
++-;date.timezone =
+++date.timezone = UTC
++ 
++ ; http://php.net/date.default-latitude
++ ;date.default_latitude = 31.7667
++@@ -1029,16 +1027,6 @@ pdo_mysql.default_socket=
++ ;phar.cache_list =
++ 
++ [mail function]
++-; For Win32 only.
++-; http://php.net/smtp
++-SMTP = localhost
++-; http://php.net/smtp-port
++-smtp_port = 25
++-
++-; For Win32 only.
++-; http://php.net/sendmail-from
++-;sendmail_from = me@example.com
++-
++ ; For Unix only.  You may supply arguments as well (default: "sendmail -t -i").
++ ; http://php.net/sendmail-path
++ ;sendmail_path =
+diff --git a/lang/php/7.1/patches/patch-php_ini-production b/lang/php/7.1/patches/patch-php_ini-production
+new file mode 100644
+index 00000000000..3342009ef89
+--- /dev/null
++++ b/lang/php/7.1/patches/patch-php_ini-production
+@@ -0,0 +1,42 @@
++$OpenBSD: patch-php_ini-production,v 1.4 2016/10/31 15:06:10 robert Exp $
++--- php.ini-production.orig.port	Fri Dec  2 03:07:48 2016
+++++ php.ini-production	Thu Dec  8 11:21:27 2016
++@@ -710,11 +710,8 @@ default_charset = "UTF-8"
++ ;;;;;;;;;;;;;;;;;;;;;;;;;
++ 
++ ; UNIX: "/path1:/path2"
++-;include_path = ".:/php/includes"
+++include_path = ".:OPENBSD_INCLUDE_PATH"
++ ;
++-; Windows: "\path1;\path2"
++-;include_path = ".;c:\php\includes"
++-;
++ ; PHP's default setting for include_path is ".;/path/to/php/pear"
++ ; http://php.net/include-path
++ 
++@@ -736,6 +733,7 @@ user_dir =
++ ; extension_dir = "./"
++ ; On windows:
++ ; extension_dir = "ext"
+++extension_dir = "MODULES_DIR"
++ 
++ ; Directory where the temporary files should be placed.
++ ; Defaults to the system default (see sys_get_temp_dir)
++@@ -832,7 +830,7 @@ max_file_uploads = 20
++ 
++ ; Whether to allow the treatment of URLs (like http:// or ftp://) as files.
++ ; http://php.net/allow-url-fopen
++-allow_url_fopen = On
+++allow_url_fopen = Off
++ 
++ ; Whether to allow include/require to open URLs (like http:// or ftp://) as files.
++ ; http://php.net/allow-url-include
++@@ -936,7 +934,7 @@ cli_server.color = On
++ [Date]
++ ; Defines the default timezone used by the date functions
++ ; http://php.net/date.timezone
++-;date.timezone =
+++date.timezone = UTC
++ 
++ ; http://php.net/date.default-latitude
++ ;date.default_latitude = 31.7667
+diff --git a/lang/php/7.1/patches/patch-sapi_cgi_cgi_main_c b/lang/php/7.1/patches/patch-sapi_cgi_cgi_main_c
+new file mode 100644
+index 00000000000..1dc940b2d41
+--- /dev/null
++++ b/lang/php/7.1/patches/patch-sapi_cgi_cgi_main_c
+@@ -0,0 +1,25 @@
++$OpenBSD: patch-sapi_cgi_cgi_main_c,v 1.1.1.1 2015/12/14 17:58:46 robert Exp $
++--- sapi/cgi/cgi_main.c.orig.port	Fri Dec  2 03:07:48 2016
+++++ sapi/cgi/cgi_main.c	Thu Dec  8 11:21:27 2016
++@@ -1751,6 +1751,7 @@ int main(int argc, char *argv[])
++ 	char *orig_optarg = php_optarg;
++ 	char *script_file = NULL;
++ 	size_t ini_entries_len = 0;
+++	char *ini;
++ 	/* end of temporary locals */
++ 
++ 	int max_requests = 500;
++@@ -1811,7 +1812,12 @@ int main(int argc, char *argv[])
++ 
++ 	sapi_startup(&cgi_sapi_module);
++ 	fastcgi = fcgi_is_fastcgi();
++-	cgi_sapi_module.php_ini_path_override = NULL;
+++
+++	if ((ini = getenv("PHP_INI_PATH"))) {
+++		cgi_sapi_module.php_ini_path_override = ini;
+++	} else {
+++		cgi_sapi_module.php_ini_path_override = NULL;
+++	}
++ 
++ #ifdef PHP_WIN32
++ 	_fmode = _O_BINARY; /* sets default for file streams to binary */
+diff --git a/lang/php/7.1/patches/patch-sapi_cli_php_cli_c b/lang/php/7.1/patches/patch-sapi_cli_php_cli_c
+new file mode 100644
+index 00000000000..4522b647253
+--- /dev/null
++++ b/lang/php/7.1/patches/patch-sapi_cli_php_cli_c
+@@ -0,0 +1,12 @@
++$OpenBSD: patch-sapi_cli_php_cli_c,v 1.1.1.1 2015/12/14 17:58:46 robert Exp $
++Index: sapi/cli/php_cli.c
++--- sapi/cli/php_cli.c.orig
+++++ sapi/cli/php_cli.c
++@@ -674,6 +674,7 @@ static int do_cli(int argc, char **argv) /* {{{ */
++ 	int lineno = 0;
++ 	const char *param_error=NULL;
++ 	int hide_argv = 0;
+++	char *ini;
++ 
++ 	zend_try {
++ 
+diff --git a/lang/php/7.1/patches/patch-sapi_fpm_fpm_fpm_atomic_h b/lang/php/7.1/patches/patch-sapi_fpm_fpm_fpm_atomic_h
+new file mode 100644
+index 00000000000..31f7b03a7c0
+--- /dev/null
++++ b/lang/php/7.1/patches/patch-sapi_fpm_fpm_fpm_atomic_h
+@@ -0,0 +1,103 @@
++$OpenBSD: patch-sapi_fpm_fpm_fpm_atomic_h,v 1.1.1.1 2015/12/14 17:58:46 robert Exp $
++
++Add support for mips
++Fix types for sparc64
++
++--- sapi/fpm/fpm/fpm_atomic.h.orig.port	Wed Nov 21 20:07:23 2012
+++++ sapi/fpm/fpm/fpm_atomic.h	Fri Nov 23 15:40:43 2012
++@@ -77,10 +77,10 @@ static inline atomic_uint_t atomic_cmp_set(atomic_t *l
++ }
++ /* }}} */
++ 
++-#if (__GNUC__) && (__GNUC__ < 4 || (__GNUC__ == 4 && __GNUC_MINOR__ < 2))
++-
++ #elif ( __arm__ || __arm ) /* W-Mark Kubacki */
++ 
+++#if (__GNUC__) && (__GNUC__ < 4 || (__GNUC__ == 4 && __GNUC_MINOR__ < 2))
+++
++ #if (__arch64__ || __arch64)
++ typedef int64_t                     atomic_int_t;
++ typedef uint64_t                    atomic_uint_t;
++@@ -101,7 +101,7 @@ typedef uint32_t                    atomic_uint_t;
++ typedef uint64_t                    atomic_uint_t;
++ typedef volatile atomic_uint_t      atomic_t;
++ 
++-static inline int atomic_cas_64(atomic_t *lock, atomic_uint_t old, atomic_uint_t new) /* {{{ */
+++static inline atomic_uint_t atomic_cas_64(atomic_t *lock, atomic_uint_t old, atomic_uint_t new) /* {{{ */
++ {
++ 	__asm__ __volatile__("casx [%2], %3, %0 " : "=&r"(new)  : "0"(new), "r"(lock), "r"(old): "memory");
++ 
++@@ -118,7 +118,7 @@ static inline atomic_uint_t atomic_cmp_set(atomic_t *l
++ typedef uint32_t                    atomic_uint_t;
++ typedef volatile atomic_uint_t      atomic_t;
++ 
++-static inline int atomic_cas_32(atomic_t *lock, atomic_uint_t old, atomic_uint_t new) /* {{{ */
+++static inline atomic_uint_t atomic_cas_32(atomic_t *lock, atomic_uint_t old, atomic_uint_t new) /* {{{ */
++ {
++ 	__asm__ __volatile__("cas [%2], %3, %0 " : "=&r"(new)  : "0"(new), "r"(lock), "r"(old): "memory");
++ 
++@@ -136,6 +136,64 @@ static inline atomic_uint_t atomic_cmp_set(atomic_t *l
++ #else /* #if (__sparcv9 || __sparcv9__) */
++ #error Sparc v8 and predecessors are not and will not be supported (see bug report 53310)
++ #endif /* #if (__sparcv9 || __sparcv9__) */
+++
+++#elif ( __mips__ || __mips64__ )
+++
+++#if (__LP64__ || _LP64)
+++typedef uint64_t                    atomic_uint_t;
+++typedef volatile atomic_uint_t      atomic_t;
+++
+++static inline atomic_uint_t atomic_cas_64(atomic_t *lock, atomic_uint_t old, atomic_uint_t new) /* {{{ */
+++{
+++	atomic_uint_t v;
+++
+++	__asm__ __volatile__ (
+++	"\t.set\tnoreorder\n"
+++	"\tlld\t%0, 0(%1)\n"
+++	"\tbne\t%0, %2, 1f\n"
+++	"\tnop\n"
+++	"\tscd\t%3, 0(%1)\n"
+++	"1:\n"
+++	"\t.set\treorder\n" :
+++	"=r" (v) : "r" (lock), "r" (old), "r" (new) : "memory");
+++
+++	return v;
+++}
+++/* }}} */
+++
+++static inline atomic_uint_t atomic_cmp_set(atomic_t *lock, atomic_uint_t old, atomic_uint_t set) /* {{{ */
+++{
+++	return (atomic_cas_64(lock, old, set)==old);
+++}
+++/* }}} */
+++#else
+++typedef uint32_t                    atomic_uint_t;
+++typedef volatile atomic_uint_t      atomic_t;
+++
+++static inline atomic_uint_t atomic_cas_32(atomic_t *lock, atomic_uint_t old, atomic_uint_t new) /* {{{ */
+++{
+++	atomic_uint_t v;
+++
+++	__asm__ __volatile__ (
+++	"\t.set\tnoreorder\n"
+++	"\tll\t%0, 0(%1)\n"
+++	"\tbne\t%0, %2, 1f\n"
+++	"\tnop\n"
+++	"\tsc\t%3, 0(%1)\n"
+++	"1:\n"
+++	"\t.set\treorder\n" :
+++	"=r" (v) : "r" (lock), "r" (old), "r" (new) : "memory");
+++
+++	return v;
+++}
+++/* }}} */
+++
+++static inline atomic_uint_t atomic_cmp_set(atomic_t *lock, atomic_uint_t old, atomic_uint_t set) /* {{{ */
+++{
+++	return (atomic_cas_32(lock, old, set)==old);
+++}
+++/* }}} */
+++#endif
++ 
++ #else
++ 
+diff --git a/lang/php/7.1/patches/patch-sapi_fpm_www_conf_in b/lang/php/7.1/patches/patch-sapi_fpm_www_conf_in
+new file mode 100644
+index 00000000000..ae1a562c540
+--- /dev/null
++++ b/lang/php/7.1/patches/patch-sapi_fpm_www_conf_in
+@@ -0,0 +1,34 @@
++$OpenBSD: patch-sapi_fpm_www_conf_in,v 1.1.1.1 2015/12/14 17:58:45 robert Exp $
++--- sapi/fpm/www.conf.in.orig.port	Sun Dec  6 14:12:56 2015
+++++ sapi/fpm/www.conf.in	Sun Dec  6 14:13:21 2015
++@@ -33,7 +33,7 @@ group = @php_fpm_group@
++ ;                            (IPv6 and IPv4-mapped) on a specific port;
++ ;   '/path/to/unix/socket' - to listen on a unix socket.
++ ; Note: This value is mandatory.
++-listen = 127.0.0.1:9000
+++listen = /var/www/run/php-fpm.sock
++ 
++ ; Set listen(2) backlog.
++ ; Default Value: 511 (-1 on FreeBSD and OpenBSD)
++@@ -44,9 +44,9 @@ listen = 127.0.0.1:9000
++ ; BSD-derived systems allow connections regardless of permissions.
++ ; Default Values: user and group are set as the running user
++ ;                 mode is set to 0660
++-;listen.owner = @php_fpm_user@
++-;listen.group = @php_fpm_group@
++-;listen.mode = 0660
+++listen.owner = www
+++listen.group = www
+++listen.mode = 0660
++ ; When POSIX Access Control Lists are supported you can set them using
++ ; these options, value is a comma separated list of user/group names.
++ ; When set, listen.owner and listen.group are ignored
++@@ -347,7 +347,7 @@ pm.max_spare_servers = 3
++ ;       possible. However, all PHP paths will be relative to the chroot
++ ;       (error_log, sessions.save_path, ...).
++ ; Default Value: not set
++-;chroot =
+++chroot = /var/www
++ 
++ ; Chdir to this directory at the start.
++ ; Note: relative path can be used.
+diff --git a/lang/php/7.1/patches/patch-scripts_Makefile_frag b/lang/php/7.1/patches/patch-scripts_Makefile_frag
+new file mode 100644
+index 00000000000..bc889e8635f
+--- /dev/null
++++ b/lang/php/7.1/patches/patch-scripts_Makefile_frag
+@@ -0,0 +1,14 @@
++$OpenBSD: patch-scripts_Makefile_frag,v 1.1.1.1 2015/12/14 17:58:46 robert Exp $
++--- scripts/Makefile.frag.orig.port	Tue Jul 13 18:24:13 2010
+++++ scripts/Makefile.frag	Sat Jun 18 12:14:54 2011
++@@ -3,8 +3,8 @@
++ # Build environment install
++ #
++ 
++-phpincludedir = $(includedir)/php
++-phpbuilddir = $(libdir)/build
+++phpincludedir = $(peardir)/include
+++phpbuilddir = $(peardir)/build
++ 
++ BUILD_FILES = \
++ 	scripts/phpize.m4 \
+diff --git a/lang/php/7.1/patches/patch-scripts_php-config_in b/lang/php/7.1/patches/patch-scripts_php-config_in
+new file mode 100644
+index 00000000000..9c04288a616
+--- /dev/null
++++ b/lang/php/7.1/patches/patch-scripts_php-config_in
+@@ -0,0 +1,31 @@
++$OpenBSD: patch-scripts_php-config_in,v 1.1.1.1 2015/12/14 17:58:46 robert Exp $
++--- scripts/php-config.in.orig.port	Thu Jul 18 16:37:33 2013
+++++ scripts/php-config.in	Sun Jul 28 11:30:20 2013
++@@ -1,12 +1,12 @@
++ #! /bin/sh
++ 
++ SED="@SED@"
++-prefix="@prefix@"
+++prefix='/var/www/pear'
++ datarootdir="@datarootdir@"
++ exec_prefix="@exec_prefix@"
++ version="@PHP_VERSION@"
++ vernum="@PHP_VERSION_ID@"
++-include_dir="@includedir@/php"
+++include_dir="@PEAR_INSTALLDIR@/include"
++ includes="-I$include_dir -I$include_dir/main -I$include_dir/TSRM -I$include_dir/Zend -I$include_dir/ext -I$include_dir/ext/date/lib"
++ ldflags="@PHP_LDFLAGS@"
++ libs="@EXTRA_LIBS@"
++@@ -24,10 +24,11 @@ php_sapis="@PHP_INSTALLED_SAPIS@"
++ for sapi in $php_sapis; do
++   case $sapi in
++   cli)
++-    php_cli_binary="@bindir@/${program_prefix}php${program_suffix}${exe_extension}"
+++    php_cli_binary="/usr/local/bin/php${program_suffix}"
++     ;;
++   cgi)
++     php_cgi_binary="@bindir@/${program_prefix}php-cgi${program_suffix}${exe_extension}"
+++    php_cgi_binary="/usr/local/bin/php-cgi${program_suffix}"
++     ;;
++   esac
++ done
+diff --git a/lang/php/7.1/patches/patch-scripts_phpize_in b/lang/php/7.1/patches/patch-scripts_phpize_in
+new file mode 100644
+index 00000000000..0ff37e9517b
+--- /dev/null
++++ b/lang/php/7.1/patches/patch-scripts_phpize_in
+@@ -0,0 +1,18 @@
++$OpenBSD: patch-scripts_phpize_in,v 1.1.1.1 2015/12/14 17:58:46 robert Exp $
++--- scripts/phpize.in.orig.port	Sat Jul 27 18:47:01 2013
+++++ scripts/phpize.in	Sat Jul 27 18:47:19 2013
++@@ -1,11 +1,11 @@
++ #!/bin/sh
++ 
++ # Variable declaration
++-prefix='@prefix@'
+++prefix=@PEAR_INSTALLDIR@
++ datarootdir='@datarootdir@'
++ exec_prefix="`eval echo @exec_prefix@`"
++-phpdir="`eval echo @libdir@`/build"
++-includedir="`eval echo @includedir@`/php"
+++phpdir="$prefix/build"
+++includedir="$prefix/include"
++ builddir="`pwd`"
++ SED="@SED@"
++ 
+diff --git a/lang/php/7.1/pkg/PLIST-bz2 b/lang/php/7.1/pkg/PLIST-bz2
+new file mode 100644
+index 00000000000..bd91ebf76e1
+--- /dev/null
++++ b/lang/php/7.1/pkg/PLIST-bz2
+@@ -0,0 +1,8 @@
++@comment $OpenBSD: PLIST-bz2,v 1.2 2016/06/29 16:14:42 espie Exp $
++@option no-default-conflict
++@option is-branch
++@conflict php-bz2->=7.1,<7.2
++@conflict php5-bz2->=5.2
++lib/php-${PV}/modules/bz2.so
++share/examples/php-${PV}/bz2.ini
++@sample ${SYSCONFDIR}/php-${PV}.sample/bz2.ini
+diff --git a/lang/php/7.1/pkg/PLIST-curl b/lang/php/7.1/pkg/PLIST-curl
+new file mode 100644
+index 00000000000..dc3fd438c0b
+--- /dev/null
++++ b/lang/php/7.1/pkg/PLIST-curl
+@@ -0,0 +1,8 @@
++@comment $OpenBSD: PLIST-curl,v 1.2 2016/06/29 16:14:42 espie Exp $
++@option no-default-conflict
++@option is-branch
++@conflict php-curl->=7.1,<7.2
++@conflict php5-curl->=5.2
++lib/php-${PV}/modules/curl.so
++share/examples/php-${PV}/curl.ini
++@sample ${SYSCONFDIR}/php-${PV}.sample/curl.ini
+diff --git a/lang/php/7.1/pkg/PLIST-dba b/lang/php/7.1/pkg/PLIST-dba
+new file mode 100644
+index 00000000000..b67b4080fd8
+--- /dev/null
++++ b/lang/php/7.1/pkg/PLIST-dba
+@@ -0,0 +1,8 @@
++@comment $OpenBSD: PLIST-dba,v 1.2 2016/06/29 16:14:42 espie Exp $
++@option no-default-conflict
++@option is-branch
++@conflict php-dba->=7.1,<7.2
++@conflict php5-dba->=5.2
++lib/php-${PV}/modules/dba.so
++share/examples/php-${PV}/dba.ini
++@sample ${SYSCONFDIR}/php-${PV}.sample/dba.ini
+diff --git a/lang/php/7.1/pkg/PLIST-fastcgi b/lang/php/7.1/pkg/PLIST-fastcgi
+new file mode 100644
+index 00000000000..2c20969ed85
+--- /dev/null
++++ b/lang/php/7.1/pkg/PLIST-fastcgi
+@@ -0,0 +1,5 @@
++@comment $OpenBSD: PLIST-fastcgi,v 1.2 2016/06/29 16:14:42 espie Exp $
++@option no-default-conflict
++@option is-branch
++@conflict php-fastcgi->=7.1,<7.2
++@bin bin/php-fastcgi-${PV}
+diff --git a/lang/php/7.1/pkg/PLIST-gd b/lang/php/7.1/pkg/PLIST-gd
+new file mode 100644
+index 00000000000..a6395f69209
+--- /dev/null
++++ b/lang/php/7.1/pkg/PLIST-gd
+@@ -0,0 +1,8 @@
++@comment $OpenBSD: PLIST-gd,v 1.2 2016/06/29 16:14:42 espie Exp $
++@option no-default-conflict
++@option is-branch
++@conflict php-gd->=7.1,<7.2
++@conflict php5-gd->=5.2
++lib/php-${PV}/modules/gd.so
++share/examples/php-${PV}/gd.ini
++@sample ${SYSCONFDIR}/php-${PV}.sample/gd.ini
+diff --git a/lang/php/7.1/pkg/PLIST-gmp b/lang/php/7.1/pkg/PLIST-gmp
+new file mode 100644
+index 00000000000..a755d987b67
+--- /dev/null
++++ b/lang/php/7.1/pkg/PLIST-gmp
+@@ -0,0 +1,8 @@
++@comment $OpenBSD: PLIST-gmp,v 1.2 2016/06/29 16:14:42 espie Exp $
++@option no-default-conflict
++@option is-branch
++@conflict php-gmp->=7.1,<7.2
++@conflict php5-gmp->=5.2
++lib/php-${PV}/modules/gmp.so
++share/examples/php-${PV}/gmp.ini
++@sample ${SYSCONFDIR}/php-${PV}.sample/gmp.ini
+diff --git a/lang/php/7.1/pkg/PLIST-imap b/lang/php/7.1/pkg/PLIST-imap
+new file mode 100644
+index 00000000000..4d38cbe218e
+--- /dev/null
++++ b/lang/php/7.1/pkg/PLIST-imap
+@@ -0,0 +1,10 @@
++@comment $OpenBSD: PLIST-imap,v 1.2 2016/06/29 16:14:42 espie Exp $
++@option no-default-conflict
++@option is-branch
++@conflict php-imap->=7.1,<7.2
++@conflict php5-imap->=5.2
++lib/php-${PV}/modules/imap.so
++share/examples/php-${PV}/imap.ini
++@comment etc/master.passwd
++@comment etc/spwd.db
++@sample ${SYSCONFDIR}/php-${PV}.sample/imap.ini
+diff --git a/lang/php/7.1/pkg/PLIST-intl b/lang/php/7.1/pkg/PLIST-intl
+new file mode 100644
+index 00000000000..95095b19a1b
+--- /dev/null
++++ b/lang/php/7.1/pkg/PLIST-intl
+@@ -0,0 +1,7 @@
++@comment $OpenBSD: PLIST-intl,v 1.2 2016/06/29 16:14:42 espie Exp $
++@option no-default-conflict
++@option is-branch
++@conflict php-intl->=7.1,<7.2
++lib/php-${PV}/modules/intl.so
++share/examples/php-${PV}/intl.ini
++@sample ${SYSCONFDIR}/php-${PV}.sample/intl.ini
+diff --git a/lang/php/7.1/pkg/PLIST-ldap b/lang/php/7.1/pkg/PLIST-ldap
+new file mode 100644
+index 00000000000..245247184ba
+--- /dev/null
++++ b/lang/php/7.1/pkg/PLIST-ldap
+@@ -0,0 +1,8 @@
++@comment $OpenBSD: PLIST-ldap,v 1.2 2016/06/29 16:14:42 espie Exp $
++@option no-default-conflict
++@option is-branch
++@conflict php-ldap->=7.1,<7.2
++@conflict php5-ldap->=5.2
++lib/php-${PV}/modules/ldap.so
++share/examples/php-${PV}/ldap.ini
++@sample ${SYSCONFDIR}/php-${PV}.sample/ldap.ini
+diff --git a/lang/php/7.1/pkg/PLIST-main b/lang/php/7.1/pkg/PLIST-main
+new file mode 100644
+index 00000000000..0c6c1f48fc0
+--- /dev/null
++++ b/lang/php/7.1/pkg/PLIST-main
+@@ -0,0 +1,392 @@
++@comment $OpenBSD: PLIST-main,v 1.5 2016/06/29 16:14:42 espie Exp $
++@option no-default-conflict
++@option is-branch
++@conflict php->=7.1,<7.2
++@conflict php-fpm->=7.1,<7.2
++@conflict php5-core->=5.2
++@conflict php5-core-fastcgi->=5.2
++@conflict php5-pdo_sqlite->=5.2
++@pkgpath lang/php/5.4
++@pkgpath lang/php/5.4,-pdo_sqlite
++@pkgpath lang/php/7.1,-fpm
++@extraunexec rm -f ${SYSCONFDIR}/php-${PV}/php-${PV}.sample/*
++@mode 1700
++@owner www
++@group www
++@sample /var/www/tmp/
++@mode
++@owner
++@group
++@bin bin/php-${PV}
++bin/php-config-${PV}
++bin/phpize-${PV}
++lib/php-${PV}/
++lib/php-${PV}/libphp7.so
++lib/php-${PV}/modules/
++lib/php-${PV}/modules/opcache.so
++@man man/man1/php-${PV}.1
++@man man/man1/php-config-${PV}.1
++@man man/man1/phpize-${PV}.1
++@man man/man8/php-fpm-${PV}.8
++@bin sbin/php-fpm-${PV}
++share/doc/pkg-readmes/${FULLPKGNAME}
++share/examples/php-${PV}/
++@sample /var/www/conf/modules.sample/
++@sample ${SYSCONFDIR}/php-${PV}.sample/
++share/examples/php-${PV}/opcache.ini
++@sample ${SYSCONFDIR}/php-${PV}.sample/opcache.ini
++share/examples/php-${PV}/php.conf
++@sample /var/www/conf/modules.sample/php-${PV}.conf
++share/examples/php-${PV}/php.ini-development
++share/examples/php-${PV}/php.ini-production
++@sample ${SYSCONFDIR}/php-${PV}.ini
++share/examples/php-${PV}/php-fpm.conf
++@sample ${SYSCONFDIR}/php-fpm.conf
++share/php-${PV}/
++share/php-${PV}/build/
++share/php-${PV}/build/Makefile.global
++share/php-${PV}/build/acinclude.m4
++share/php-${PV}/build/config.guess
++share/php-${PV}/build/config.sub
++share/php-${PV}/build/libtool.m4
++share/php-${PV}/build/ltmain.sh
++share/php-${PV}/build/mkdep.awk
++share/php-${PV}/build/phpize.m4
++share/php-${PV}/build/run-tests.php
++share/php-${PV}/build/scan_makefile_in.awk
++share/php-${PV}/build/shtool
++share/php-${PV}/include/
++share/php-${PV}/include/TSRM/
++share/php-${PV}/include/TSRM/TSRM.h
++share/php-${PV}/include/TSRM/readdir.h
++share/php-${PV}/include/TSRM/tsrm_config.h
++share/php-${PV}/include/TSRM/tsrm_config.w32.h
++share/php-${PV}/include/TSRM/tsrm_config_common.h
++share/php-${PV}/include/TSRM/tsrm_nw.h
++share/php-${PV}/include/TSRM/tsrm_strtok_r.h
++share/php-${PV}/include/TSRM/tsrm_win32.h
++share/php-${PV}/include/Zend/
++share/php-${PV}/include/Zend/zend.h
++share/php-${PV}/include/Zend/zend_API.h
++share/php-${PV}/include/Zend/zend_alloc.h
++share/php-${PV}/include/Zend/zend_alloc_sizes.h
++share/php-${PV}/include/Zend/zend_arena.h
++share/php-${PV}/include/Zend/zend_ast.h
++share/php-${PV}/include/Zend/zend_bitset.h
++share/php-${PV}/include/Zend/zend_build.h
++share/php-${PV}/include/Zend/zend_builtin_functions.h
++share/php-${PV}/include/Zend/zend_closures.h
++share/php-${PV}/include/Zend/zend_compile.h
++share/php-${PV}/include/Zend/zend_config.h
++share/php-${PV}/include/Zend/zend_config.nw.h
++share/php-${PV}/include/Zend/zend_config.w32.h
++share/php-${PV}/include/Zend/zend_constants.h
++share/php-${PV}/include/Zend/zend_dtrace.h
++share/php-${PV}/include/Zend/zend_errors.h
++share/php-${PV}/include/Zend/zend_exceptions.h
++share/php-${PV}/include/Zend/zend_execute.h
++share/php-${PV}/include/Zend/zend_extensions.h
++share/php-${PV}/include/Zend/zend_float.h
++share/php-${PV}/include/Zend/zend_gc.h
++share/php-${PV}/include/Zend/zend_generators.h
++share/php-${PV}/include/Zend/zend_globals.h
++share/php-${PV}/include/Zend/zend_globals_macros.h
++share/php-${PV}/include/Zend/zend_hash.h
++share/php-${PV}/include/Zend/zend_highlight.h
++share/php-${PV}/include/Zend/zend_inheritance.h
++share/php-${PV}/include/Zend/zend_ini.h
++share/php-${PV}/include/Zend/zend_ini_parser.h
++share/php-${PV}/include/Zend/zend_ini_scanner.h
++share/php-${PV}/include/Zend/zend_ini_scanner_defs.h
++share/php-${PV}/include/Zend/zend_interfaces.h
++share/php-${PV}/include/Zend/zend_istdiostream.h
++share/php-${PV}/include/Zend/zend_iterators.h
++share/php-${PV}/include/Zend/zend_language_parser.h
++share/php-${PV}/include/Zend/zend_language_scanner.h
++share/php-${PV}/include/Zend/zend_language_scanner_defs.h
++share/php-${PV}/include/Zend/zend_list.h
++share/php-${PV}/include/Zend/zend_llist.h
++share/php-${PV}/include/Zend/zend_long.h
++share/php-${PV}/include/Zend/zend_modules.h
++share/php-${PV}/include/Zend/zend_multibyte.h
++share/php-${PV}/include/Zend/zend_multiply.h
++share/php-${PV}/include/Zend/zend_object_handlers.h
++share/php-${PV}/include/Zend/zend_objects.h
++share/php-${PV}/include/Zend/zend_objects_API.h
++share/php-${PV}/include/Zend/zend_operators.h
++share/php-${PV}/include/Zend/zend_portability.h
++share/php-${PV}/include/Zend/zend_ptr_stack.h
++share/php-${PV}/include/Zend/zend_range_check.h
++share/php-${PV}/include/Zend/zend_signal.h
++share/php-${PV}/include/Zend/zend_smart_str.h
++share/php-${PV}/include/Zend/zend_smart_str_public.h
++share/php-${PV}/include/Zend/zend_sort.h
++share/php-${PV}/include/Zend/zend_stack.h
++share/php-${PV}/include/Zend/zend_stream.h
++share/php-${PV}/include/Zend/zend_string.h
++share/php-${PV}/include/Zend/zend_strtod.h
++share/php-${PV}/include/Zend/zend_strtod_int.h
++share/php-${PV}/include/Zend/zend_ts_hash.h
++share/php-${PV}/include/Zend/zend_types.h
++share/php-${PV}/include/Zend/zend_variables.h
++share/php-${PV}/include/Zend/zend_virtual_cwd.h
++share/php-${PV}/include/Zend/zend_vm.h
++share/php-${PV}/include/Zend/zend_vm_def.h
++share/php-${PV}/include/Zend/zend_vm_execute.h
++share/php-${PV}/include/Zend/zend_vm_opcodes.h
++share/php-${PV}/include/ext/
++share/php-${PV}/include/ext/date/
++share/php-${PV}/include/ext/date/lib/
++share/php-${PV}/include/ext/date/lib/timelib.h
++share/php-${PV}/include/ext/date/lib/timelib_config.h
++share/php-${PV}/include/ext/date/lib/timelib_structs.h
++share/php-${PV}/include/ext/date/php_date.h
++share/php-${PV}/include/ext/dom/
++share/php-${PV}/include/ext/dom/xml_common.h
++share/php-${PV}/include/ext/filter/
++share/php-${PV}/include/ext/filter/php_filter.h
++share/php-${PV}/include/ext/gd/
++share/php-${PV}/include/ext/gd/gd_compat.h
++share/php-${PV}/include/ext/gd/gdcache.h
++share/php-${PV}/include/ext/gd/libgd/
++share/php-${PV}/include/ext/gd/libgd/gd.h
++share/php-${PV}/include/ext/gd/libgd/gd_intern.h
++share/php-${PV}/include/ext/gd/libgd/gd_io.h
++share/php-${PV}/include/ext/gd/libgd/gdcache.h
++share/php-${PV}/include/ext/gd/libgd/gdfontg.h
++share/php-${PV}/include/ext/gd/libgd/gdfontl.h
++share/php-${PV}/include/ext/gd/libgd/gdfontmb.h
++share/php-${PV}/include/ext/gd/libgd/gdfonts.h
++share/php-${PV}/include/ext/gd/libgd/gdfontt.h
++share/php-${PV}/include/ext/gd/libgd/gdhelpers.h
++share/php-${PV}/include/ext/gd/libgd/jisx0208.h
++share/php-${PV}/include/ext/gd/libgd/wbmp.h
++share/php-${PV}/include/ext/gd/php_gd.h
++share/php-${PV}/include/ext/hash/
++share/php-${PV}/include/ext/hash/php_hash.h
++share/php-${PV}/include/ext/hash/php_hash_adler32.h
++share/php-${PV}/include/ext/hash/php_hash_crc32.h
++share/php-${PV}/include/ext/hash/php_hash_fnv.h
++share/php-${PV}/include/ext/hash/php_hash_gost.h
++share/php-${PV}/include/ext/hash/php_hash_haval.h
++share/php-${PV}/include/ext/hash/php_hash_joaat.h
++share/php-${PV}/include/ext/hash/php_hash_md.h
++share/php-${PV}/include/ext/hash/php_hash_ripemd.h
++share/php-${PV}/include/ext/hash/php_hash_sha.h
++share/php-${PV}/include/ext/hash/php_hash_snefru.h
++share/php-${PV}/include/ext/hash/php_hash_tiger.h
++share/php-${PV}/include/ext/hash/php_hash_whirlpool.h
++share/php-${PV}/include/ext/iconv/
++share/php-${PV}/include/ext/iconv/php_have_bsd_iconv.h
++share/php-${PV}/include/ext/iconv/php_have_glibc_iconv.h
++share/php-${PV}/include/ext/iconv/php_have_ibm_iconv.h
++share/php-${PV}/include/ext/iconv/php_have_iconv.h
++share/php-${PV}/include/ext/iconv/php_have_libiconv.h
++share/php-${PV}/include/ext/iconv/php_iconv.h
++share/php-${PV}/include/ext/iconv/php_iconv_aliased_libiconv.h
++share/php-${PV}/include/ext/iconv/php_iconv_broken_ignore.h
++share/php-${PV}/include/ext/iconv/php_iconv_supports_errno.h
++share/php-${PV}/include/ext/iconv/php_php_iconv_h_path.h
++share/php-${PV}/include/ext/iconv/php_php_iconv_impl.h
++share/php-${PV}/include/ext/json/
++share/php-${PV}/include/ext/json/php_json.h
++share/php-${PV}/include/ext/libxml/
++share/php-${PV}/include/ext/libxml/php_libxml.h
++share/php-${PV}/include/ext/mbstring/
++share/php-${PV}/include/ext/mbstring/libmbfl/
++share/php-${PV}/include/ext/mbstring/libmbfl/config.h
++share/php-${PV}/include/ext/mbstring/libmbfl/mbfl/
++share/php-${PV}/include/ext/mbstring/libmbfl/mbfl/eaw_table.h
++share/php-${PV}/include/ext/mbstring/libmbfl/mbfl/mbfilter.h
++share/php-${PV}/include/ext/mbstring/libmbfl/mbfl/mbfilter_8bit.h
++share/php-${PV}/include/ext/mbstring/libmbfl/mbfl/mbfilter_pass.h
++share/php-${PV}/include/ext/mbstring/libmbfl/mbfl/mbfilter_wchar.h
++share/php-${PV}/include/ext/mbstring/libmbfl/mbfl/mbfl_allocators.h
++share/php-${PV}/include/ext/mbstring/libmbfl/mbfl/mbfl_consts.h
++share/php-${PV}/include/ext/mbstring/libmbfl/mbfl/mbfl_convert.h
++share/php-${PV}/include/ext/mbstring/libmbfl/mbfl/mbfl_defs.h
++share/php-${PV}/include/ext/mbstring/libmbfl/mbfl/mbfl_encoding.h
++share/php-${PV}/include/ext/mbstring/libmbfl/mbfl/mbfl_filter_output.h
++share/php-${PV}/include/ext/mbstring/libmbfl/mbfl/mbfl_ident.h
++share/php-${PV}/include/ext/mbstring/libmbfl/mbfl/mbfl_language.h
++share/php-${PV}/include/ext/mbstring/libmbfl/mbfl/mbfl_memory_device.h
++share/php-${PV}/include/ext/mbstring/libmbfl/mbfl/mbfl_string.h
++share/php-${PV}/include/ext/mbstring/mbstring.h
++share/php-${PV}/include/ext/mbstring/oniguruma/
++share/php-${PV}/include/ext/mbstring/oniguruma/oniguruma.h
++share/php-${PV}/include/ext/mbstring/php_mbregex.h
++share/php-${PV}/include/ext/mbstring/php_onig_compat.h
++share/php-${PV}/include/ext/mysqli/
++share/php-${PV}/include/ext/mysqli/mysqli_libmysql.h
++share/php-${PV}/include/ext/mysqli/php_mysqli_structs.h
++share/php-${PV}/include/ext/mysqlnd/
++share/php-${PV}/include/ext/mysqlnd/config-win.h
++share/php-${PV}/include/ext/mysqlnd/mysql_float_to_double.h
++share/php-${PV}/include/ext/mysqlnd/mysqlnd.h
++share/php-${PV}/include/ext/mysqlnd/mysqlnd_alloc.h
++share/php-${PV}/include/ext/mysqlnd/mysqlnd_block_alloc.h
++share/php-${PV}/include/ext/mysqlnd/mysqlnd_charset.h
++share/php-${PV}/include/ext/mysqlnd/mysqlnd_debug.h
++share/php-${PV}/include/ext/mysqlnd/mysqlnd_enum_n_def.h
++share/php-${PV}/include/ext/mysqlnd/mysqlnd_ext_plugin.h
++share/php-${PV}/include/ext/mysqlnd/mysqlnd_libmysql_compat.h
++share/php-${PV}/include/ext/mysqlnd/mysqlnd_portability.h
++share/php-${PV}/include/ext/mysqlnd/mysqlnd_priv.h
++share/php-${PV}/include/ext/mysqlnd/mysqlnd_result.h
++share/php-${PV}/include/ext/mysqlnd/mysqlnd_result_meta.h
++share/php-${PV}/include/ext/mysqlnd/mysqlnd_reverse_api.h
++share/php-${PV}/include/ext/mysqlnd/mysqlnd_statistics.h
++share/php-${PV}/include/ext/mysqlnd/mysqlnd_structs.h
++share/php-${PV}/include/ext/mysqlnd/mysqlnd_wireprotocol.h
++share/php-${PV}/include/ext/mysqlnd/php_mysqlnd.h
++share/php-${PV}/include/ext/pcre/
++share/php-${PV}/include/ext/pcre/pcrelib/
++share/php-${PV}/include/ext/pcre/pcrelib/config.h
++share/php-${PV}/include/ext/pcre/pcrelib/pcre.h
++share/php-${PV}/include/ext/pcre/pcrelib/pcre_internal.h
++share/php-${PV}/include/ext/pcre/pcrelib/pcreposix.h
++share/php-${PV}/include/ext/pcre/pcrelib/ucp.h
++share/php-${PV}/include/ext/pcre/php_pcre.h
++share/php-${PV}/include/ext/pdo/
++share/php-${PV}/include/ext/pdo/php_pdo.h
++share/php-${PV}/include/ext/pdo/php_pdo_driver.h
++share/php-${PV}/include/ext/pdo/php_pdo_error.h
++share/php-${PV}/include/ext/phar/
++share/php-${PV}/include/ext/phar/php_phar.h
++share/php-${PV}/include/ext/session/
++share/php-${PV}/include/ext/session/mod_files.h
++share/php-${PV}/include/ext/session/mod_user.h
++share/php-${PV}/include/ext/session/php_session.h
++share/php-${PV}/include/ext/simplexml/
++share/php-${PV}/include/ext/simplexml/php_simplexml.h
++share/php-${PV}/include/ext/simplexml/php_simplexml_exports.h
++share/php-${PV}/include/ext/sockets/
++share/php-${PV}/include/ext/sockets/php_sockets.h
++share/php-${PV}/include/ext/spl/
++share/php-${PV}/include/ext/spl/php_spl.h
++share/php-${PV}/include/ext/spl/spl_array.h
++share/php-${PV}/include/ext/spl/spl_directory.h
++share/php-${PV}/include/ext/spl/spl_dllist.h
++share/php-${PV}/include/ext/spl/spl_engine.h
++share/php-${PV}/include/ext/spl/spl_exceptions.h
++share/php-${PV}/include/ext/spl/spl_fixedarray.h
++share/php-${PV}/include/ext/spl/spl_functions.h
++share/php-${PV}/include/ext/spl/spl_heap.h
++share/php-${PV}/include/ext/spl/spl_iterators.h
++share/php-${PV}/include/ext/spl/spl_observer.h
++share/php-${PV}/include/ext/sqlite3/
++share/php-${PV}/include/ext/sqlite3/libsqlite/
++share/php-${PV}/include/ext/sqlite3/libsqlite/sqlite3.h
++share/php-${PV}/include/ext/standard/
++share/php-${PV}/include/ext/standard/base64.h
++share/php-${PV}/include/ext/standard/basic_functions.h
++share/php-${PV}/include/ext/standard/crc32.h
++share/php-${PV}/include/ext/standard/credits.h
++share/php-${PV}/include/ext/standard/credits_ext.h
++share/php-${PV}/include/ext/standard/credits_sapi.h
++share/php-${PV}/include/ext/standard/crypt_blowfish.h
++share/php-${PV}/include/ext/standard/crypt_freesec.h
++share/php-${PV}/include/ext/standard/css.h
++share/php-${PV}/include/ext/standard/cyr_convert.h
++share/php-${PV}/include/ext/standard/datetime.h
++share/php-${PV}/include/ext/standard/dl.h
++share/php-${PV}/include/ext/standard/exec.h
++share/php-${PV}/include/ext/standard/file.h
++share/php-${PV}/include/ext/standard/flock_compat.h
++share/php-${PV}/include/ext/standard/fsock.h
++share/php-${PV}/include/ext/standard/head.h
++share/php-${PV}/include/ext/standard/html.h
++share/php-${PV}/include/ext/standard/html_tables.h
++share/php-${PV}/include/ext/standard/info.h
++share/php-${PV}/include/ext/standard/md5.h
++share/php-${PV}/include/ext/standard/microtime.h
++share/php-${PV}/include/ext/standard/pack.h
++share/php-${PV}/include/ext/standard/pageinfo.h
++share/php-${PV}/include/ext/standard/php_array.h
++share/php-${PV}/include/ext/standard/php_assert.h
++share/php-${PV}/include/ext/standard/php_browscap.h
++share/php-${PV}/include/ext/standard/php_crypt.h
++share/php-${PV}/include/ext/standard/php_crypt_r.h
++share/php-${PV}/include/ext/standard/php_dir.h
++share/php-${PV}/include/ext/standard/php_dns.h
++share/php-${PV}/include/ext/standard/php_ext_syslog.h
++share/php-${PV}/include/ext/standard/php_filestat.h
++share/php-${PV}/include/ext/standard/php_fopen_wrappers.h
++share/php-${PV}/include/ext/standard/php_ftok.h
++share/php-${PV}/include/ext/standard/php_http.h
++share/php-${PV}/include/ext/standard/php_image.h
++share/php-${PV}/include/ext/standard/php_incomplete_class.h
++share/php-${PV}/include/ext/standard/php_iptc.h
++share/php-${PV}/include/ext/standard/php_lcg.h
++share/php-${PV}/include/ext/standard/php_link.h
++share/php-${PV}/include/ext/standard/php_mail.h
++share/php-${PV}/include/ext/standard/php_math.h
++share/php-${PV}/include/ext/standard/php_metaphone.h
++share/php-${PV}/include/ext/standard/php_password.h
++share/php-${PV}/include/ext/standard/php_rand.h
++share/php-${PV}/include/ext/standard/php_random.h
++share/php-${PV}/include/ext/standard/php_smart_string.h
++share/php-${PV}/include/ext/standard/php_smart_string_public.h
++share/php-${PV}/include/ext/standard/php_standard.h
++share/php-${PV}/include/ext/standard/php_string.h
++share/php-${PV}/include/ext/standard/php_type.h
++share/php-${PV}/include/ext/standard/php_uuencode.h
++share/php-${PV}/include/ext/standard/php_var.h
++share/php-${PV}/include/ext/standard/php_versioning.h
++share/php-${PV}/include/ext/standard/proc_open.h
++share/php-${PV}/include/ext/standard/quot_print.h
++share/php-${PV}/include/ext/standard/scanf.h
++share/php-${PV}/include/ext/standard/sha1.h
++share/php-${PV}/include/ext/standard/streamsfuncs.h
++share/php-${PV}/include/ext/standard/uniqid.h
++share/php-${PV}/include/ext/standard/url.h
++share/php-${PV}/include/ext/standard/url_scanner_ex.h
++share/php-${PV}/include/ext/standard/winver.h
++share/php-${PV}/include/ext/xml/
++share/php-${PV}/include/ext/xml/expat_compat.h
++share/php-${PV}/include/ext/xml/php_xml.h
++share/php-${PV}/include/include/
++share/php-${PV}/include/main/
++share/php-${PV}/include/main/SAPI.h
++share/php-${PV}/include/main/build-defs.h
++share/php-${PV}/include/main/fastcgi.h
++share/php-${PV}/include/main/fopen_wrappers.h
++share/php-${PV}/include/main/http_status_codes.h
++share/php-${PV}/include/main/php.h
++share/php-${PV}/include/main/php_compat.h
++share/php-${PV}/include/main/php_config.h
++share/php-${PV}/include/main/php_content_types.h
++share/php-${PV}/include/main/php_getopt.h
++share/php-${PV}/include/main/php_globals.h
++share/php-${PV}/include/main/php_ini.h
++share/php-${PV}/include/main/php_main.h
++share/php-${PV}/include/main/php_memory_streams.h
++share/php-${PV}/include/main/php_network.h
++share/php-${PV}/include/main/php_open_temporary_file.h
++share/php-${PV}/include/main/php_output.h
++share/php-${PV}/include/main/php_reentrancy.h
++share/php-${PV}/include/main/php_scandir.h
++share/php-${PV}/include/main/php_stdint.h
++share/php-${PV}/include/main/php_streams.h
++share/php-${PV}/include/main/php_syslog.h
++share/php-${PV}/include/main/php_ticks.h
++share/php-${PV}/include/main/php_variables.h
++share/php-${PV}/include/main/php_version.h
++share/php-${PV}/include/main/rfc1867.h
++share/php-${PV}/include/main/snprintf.h
++share/php-${PV}/include/main/spprintf.h
++share/php-${PV}/include/main/streams/
++share/php-${PV}/include/main/streams/php_stream_context.h
++share/php-${PV}/include/main/streams/php_stream_filter_api.h
++share/php-${PV}/include/main/streams/php_stream_glob_wrapper.h
++share/php-${PV}/include/main/streams/php_stream_mmap.h
++share/php-${PV}/include/main/streams/php_stream_plain_wrapper.h
++share/php-${PV}/include/main/streams/php_stream_transport.h
++share/php-${PV}/include/main/streams/php_stream_userspace.h
++share/php-${PV}/include/main/streams/php_streams_int.h
++share/php-${PV}/include/main/win95nt.h
++share/php-${PV}/include/sapi/
++share/php-${PV}/include/sapi/cli/
++share/php-${PV}/include/sapi/cli/cli.h
++@sample ${SYSCONFDIR}/php-${PV}/
++@rcscript ${RCDIR}/php${SV}_fpm
+diff --git a/lang/php/7.1/pkg/PLIST-mcrypt b/lang/php/7.1/pkg/PLIST-mcrypt
+new file mode 100644
+index 00000000000..d74a331b328
+--- /dev/null
++++ b/lang/php/7.1/pkg/PLIST-mcrypt
+@@ -0,0 +1,8 @@
++@comment $OpenBSD: PLIST-mcrypt,v 1.2 2016/06/29 16:14:42 espie Exp $
++@option no-default-conflict
++@option is-branch
++@conflict php-mcrypt->=7.1,<7.2
++@conflict php5-mcrypt->=5.2
++lib/php-${PV}/modules/mcrypt.so
++share/examples/php-${PV}/mcrypt.ini
++@sample ${SYSCONFDIR}/php-${PV}.sample/mcrypt.ini
+diff --git a/lang/php/7.1/pkg/PLIST-mysqli b/lang/php/7.1/pkg/PLIST-mysqli
+new file mode 100644
+index 00000000000..78e95205972
+--- /dev/null
++++ b/lang/php/7.1/pkg/PLIST-mysqli
+@@ -0,0 +1,8 @@
++@comment $OpenBSD: PLIST-mysqli,v 1.2 2016/06/29 16:14:42 espie Exp $
++@option no-default-conflict
++@option is-branch
++@conflict php-mysqli->=7.1,<7.2
++@conflict php5-mysqli->=5.2
++lib/php-${PV}/modules/mysqli.so
++share/examples/php-${PV}/mysqli.ini
++@sample ${SYSCONFDIR}/php-${PV}.sample/mysqli.ini
+diff --git a/lang/php/7.1/pkg/PLIST-odbc b/lang/php/7.1/pkg/PLIST-odbc
+new file mode 100644
+index 00000000000..e185a2486d0
+--- /dev/null
++++ b/lang/php/7.1/pkg/PLIST-odbc
+@@ -0,0 +1,8 @@
++@comment $OpenBSD: PLIST-odbc,v 1.2 2016/06/29 16:14:42 espie Exp $
++@option no-default-conflict
++@option is-branch
++@conflict php-odbc->=7.1,<7.2
++@conflict php5-odbc->=5.2
++lib/php-${PV}/modules/odbc.so
++share/examples/php-${PV}/odbc.ini
++@sample ${SYSCONFDIR}/php-${PV}.sample/odbc.ini
+diff --git a/lang/php/7.1/pkg/PLIST-pcntl b/lang/php/7.1/pkg/PLIST-pcntl
+new file mode 100644
+index 00000000000..5a2abb40b1c
+--- /dev/null
++++ b/lang/php/7.1/pkg/PLIST-pcntl
+@@ -0,0 +1,10 @@
++@comment $OpenBSD: PLIST-pcntl,v 1.2 2016/06/29 16:14:42 espie Exp $
++@option no-default-conflict
++@option is-branch
++@conflict php-pcntl->=7.1,<7.2
++@conflict php5-pcntl->=5.2
++@conflict pecl-pcntl-*
++@pkgpath www/pecl-pcntl
++lib/php-${PV}/modules/pcntl.so
++share/examples/php-${PV}/pcntl.ini
++@sample ${SYSCONFDIR}/php-${PV}.sample/pcntl.ini
+diff --git a/lang/php/7.1/pkg/PLIST-pdo_dblib b/lang/php/7.1/pkg/PLIST-pdo_dblib
+new file mode 100644
+index 00000000000..b5f0531eb59
+--- /dev/null
++++ b/lang/php/7.1/pkg/PLIST-pdo_dblib
+@@ -0,0 +1,8 @@
++@comment $OpenBSD: PLIST-pdo_dblib,v 1.2 2016/06/29 16:14:42 espie Exp $
++@option no-default-conflict
++@option is-branch
++@conflict php-pdo_dblib->=7.1,<7.2
++@conflict php5-pdo_dblib->=5.2
++lib/php-${PV}/modules/pdo_dblib.so
++share/examples/php-${PV}/pdo_dblib.ini
++@sample ${SYSCONFDIR}/php-${PV}.sample/pdo_dblib.ini
+diff --git a/lang/php/7.1/pkg/PLIST-pdo_mysql b/lang/php/7.1/pkg/PLIST-pdo_mysql
+new file mode 100644
+index 00000000000..f7027c25b46
+--- /dev/null
++++ b/lang/php/7.1/pkg/PLIST-pdo_mysql
+@@ -0,0 +1,8 @@
++@comment $OpenBSD: PLIST-pdo_mysql,v 1.2 2016/06/29 16:14:42 espie Exp $
++@option no-default-conflict
++@option is-branch
++@conflict php-pdo_mysql->=7.1,<7.2
++@conflict php5-pdo_mysql->=5.2
++lib/php-${PV}/modules/pdo_mysql.so
++share/examples/php-${PV}/pdo_mysql.ini
++@sample ${SYSCONFDIR}/php-${PV}.sample/pdo_mysql.ini
+diff --git a/lang/php/7.1/pkg/PLIST-pdo_pgsql b/lang/php/7.1/pkg/PLIST-pdo_pgsql
+new file mode 100644
+index 00000000000..a1a4af4cdd1
+--- /dev/null
++++ b/lang/php/7.1/pkg/PLIST-pdo_pgsql
+@@ -0,0 +1,8 @@
++@comment $OpenBSD: PLIST-pdo_pgsql,v 1.2 2016/06/29 16:14:42 espie Exp $
++@option no-default-conflict
++@option is-branch
++@conflict php-pdo_pgsql->=7.1,<7.2
++@conflict php5-pdo_pgsql->=5.2
++lib/php-${PV}/modules/pdo_pgsql.so
++share/examples/php-${PV}/pdo_pgsql.ini
++@sample ${SYSCONFDIR}/php-${PV}.sample/pdo_pgsql.ini
+diff --git a/lang/php/7.1/pkg/PLIST-pgsql b/lang/php/7.1/pkg/PLIST-pgsql
+new file mode 100644
+index 00000000000..c896f65bab6
+--- /dev/null
++++ b/lang/php/7.1/pkg/PLIST-pgsql
+@@ -0,0 +1,8 @@
++@comment $OpenBSD: PLIST-pgsql,v 1.2 2016/06/29 16:14:42 espie Exp $
++@option no-default-conflict
++@option is-branch
++@conflict php-pgsql->=7.1,<7.2
++@conflict php5-pgsql->=5.2
++lib/php-${PV}/modules/pgsql.so
++share/examples/php-${PV}/pgsql.ini
++@sample ${SYSCONFDIR}/php-${PV}.sample/pgsql.ini
+diff --git a/lang/php/7.1/pkg/PLIST-pspell b/lang/php/7.1/pkg/PLIST-pspell
+new file mode 100644
+index 00000000000..06471a08eee
+--- /dev/null
++++ b/lang/php/7.1/pkg/PLIST-pspell
+@@ -0,0 +1,8 @@
++@comment $OpenBSD: PLIST-pspell,v 1.2 2016/06/29 16:14:42 espie Exp $
++@option no-default-conflict
++@option is-branch
++@conflict php-pspell->=7.1,<7.2
++@conflict php5-pspell->=5.2
++lib/php-${PV}/modules/pspell.so
++share/examples/php-${PV}/pspell.ini
++@sample ${SYSCONFDIR}/php-${PV}.sample/pspell.ini
+diff --git a/lang/php/7.1/pkg/PLIST-shmop b/lang/php/7.1/pkg/PLIST-shmop
+new file mode 100644
+index 00000000000..e16ae62fb42
+--- /dev/null
++++ b/lang/php/7.1/pkg/PLIST-shmop
+@@ -0,0 +1,8 @@
++@comment $OpenBSD: PLIST-shmop,v 1.2 2016/06/29 16:14:42 espie Exp $
++@option no-default-conflict
++@option is-branch
++@conflict php-shmop->=7.1,<7.2
++@conflict php5-shmop->=5.2
++lib/php-${PV}/modules/shmop.so
++share/examples/php-${PV}/shmop.ini
++@sample ${SYSCONFDIR}/php-${PV}.sample/shmop.ini
+diff --git a/lang/php/7.1/pkg/PLIST-snmp b/lang/php/7.1/pkg/PLIST-snmp
+new file mode 100644
+index 00000000000..00b7a3cd369
+--- /dev/null
++++ b/lang/php/7.1/pkg/PLIST-snmp
+@@ -0,0 +1,8 @@
++@comment $OpenBSD: PLIST-snmp,v 1.2 2016/06/29 16:14:42 espie Exp $
++@option no-default-conflict
++@option is-branch
++@conflict php-snmp->=7.1,<7.2
++@conflict php5-snmp->=5.2
++lib/php-${PV}/modules/snmp.so
++share/examples/php-${PV}/snmp.ini
++@sample ${SYSCONFDIR}/php-${PV}.sample/snmp.ini
+diff --git a/lang/php/7.1/pkg/PLIST-soap b/lang/php/7.1/pkg/PLIST-soap
+new file mode 100644
+index 00000000000..753334690ee
+--- /dev/null
++++ b/lang/php/7.1/pkg/PLIST-soap
+@@ -0,0 +1,8 @@
++@comment $OpenBSD: PLIST-soap,v 1.2 2016/06/29 16:14:42 espie Exp $
++@option no-default-conflict
++@option is-branch
++@conflict php-soap->=7.1,<7.2
++@conflict php5-soap->=5.2
++lib/php-${PV}/modules/soap.so
++share/examples/php-${PV}/soap.ini
++@sample ${SYSCONFDIR}/php-${PV}.sample/soap.ini
+diff --git a/lang/php/7.1/pkg/PLIST-tidy b/lang/php/7.1/pkg/PLIST-tidy
+new file mode 100644
+index 00000000000..10c4d5a22c7
+--- /dev/null
++++ b/lang/php/7.1/pkg/PLIST-tidy
+@@ -0,0 +1,8 @@
++@comment $OpenBSD: PLIST-tidy,v 1.2 2016/06/29 16:14:42 espie Exp $
++@option no-default-conflict
++@option is-branch
++@conflict php-tidy->=7.1,<7.2
++@conflict php5-tidy->=5.2
++lib/php-${PV}/modules/tidy.so
++share/examples/php-${PV}/tidy.ini
++@sample ${SYSCONFDIR}/php-${PV}.sample/tidy.ini
+diff --git a/lang/php/7.1/pkg/PLIST-xmlrpc b/lang/php/7.1/pkg/PLIST-xmlrpc
+new file mode 100644
+index 00000000000..cc8f0f40519
+--- /dev/null
++++ b/lang/php/7.1/pkg/PLIST-xmlrpc
+@@ -0,0 +1,8 @@
++@comment $OpenBSD: PLIST-xmlrpc,v 1.2 2016/06/29 16:14:42 espie Exp $
++@option no-default-conflict
++@option is-branch
++@conflict php-xmlrpc->=7.1,<7.2
++@conflict php5-xmlrpc->=5.2
++lib/php-${PV}/modules/xmlrpc.so
++share/examples/php-${PV}/xmlrpc.ini
++@sample ${SYSCONFDIR}/php-${PV}.sample/xmlrpc.ini
+diff --git a/lang/php/7.1/pkg/PLIST-xsl b/lang/php/7.1/pkg/PLIST-xsl
+new file mode 100644
+index 00000000000..4ed900b55cc
+--- /dev/null
++++ b/lang/php/7.1/pkg/PLIST-xsl
+@@ -0,0 +1,8 @@
++@comment $OpenBSD: PLIST-xsl,v 1.2 2016/06/29 16:14:42 espie Exp $
++@option no-default-conflict
++@option is-branch
++@conflict php-xsl->=7.1,<7.2
++@conflict php5-xsl->=5.2
++lib/php-${PV}/modules/xsl.so
++share/examples/php-${PV}/xsl.ini
++@sample ${SYSCONFDIR}/php-${PV}.sample/xsl.ini
+diff --git a/lang/php/7.1/pkg/PLIST-zip b/lang/php/7.1/pkg/PLIST-zip
+new file mode 100644
+index 00000000000..dbcfaa7f345
+--- /dev/null
++++ b/lang/php/7.1/pkg/PLIST-zip
+@@ -0,0 +1,9 @@
++@comment $OpenBSD: PLIST-zip,v 1.2 2016/06/29 16:14:42 espie Exp $
++@option no-default-conflict
++@option is-branch
++@conflict php-zip->=7.1,<7.2
++@conflict pecl-zip-*
++@pkgpath archivers/pecl-zip
++lib/php-${PV}/modules/zip.so
++share/examples/php-${PV}/zip.ini
++@sample ${SYSCONFDIR}/php-${PV}.sample/zip.ini
+diff --git a/lang/php/7.1/pkg/php71_fpm.rc b/lang/php/7.1/pkg/php71_fpm.rc
+new file mode 100755
+index 00000000000..b90b8a8bfea
+--- /dev/null
++++ b/lang/php/7.1/pkg/php71_fpm.rc
+@@ -0,0 +1,12 @@
++#!/bin/sh
++#
++# $OpenBSD: php70_fpm.rc,v 1.1.1.1 2015/12/14 17:58:46 robert Exp $
++
++daemon="${TRUEPREFIX}/sbin/php-fpm-${PV}"
++
++. /etc/rc.d/rc.subr
++
++pexp="php-fpm-${PV}: master process .*"
++rc_reload=NO
++
++rc_cmd $1
+diff --git a/lang/php/Makefile.inc b/lang/php/Makefile.inc
+index 02e7561c950..019b0c72a7c 100644
+--- a/lang/php/Makefile.inc
++++ b/lang/php/Makefile.inc
+@@ -48,7 +48,7 @@ INI_TEMPLATES?=		development production
+ # don't have.
+ USE_LIBTOOL?=		No
+ 
+-.if ${PV} != "7.0"
++.if ${PV} != "7.0" && ${PV} != "7.1"
+ FLAVORS=		no_suhosin
+ .endif
+ FLAVOR?=
+@@ -149,7 +149,7 @@ MULTI_PACKAGES+=	-gd
+ COMMENT-gd=		image manipulation extensions for php5
+ LIB_DEPENDS-gd=		graphics/jpeg \
+ 			graphics/png
+-.if ${PV} != "7.0"
++.if ${PV} != "7.0" && ${PV} != "7.1"
+ LIB_DEPENDS-gd+=	devel/t1lib
+ WANTLIB-gd+=		t1>=5
+ .endif
+@@ -200,7 +200,7 @@ CONFIGURE_ARGS+=	--with-mcrypt=shared,${LOCALBASE}
+ LIB_DEPENDS-mcrypt=	security/libmcrypt devel/libtool,-ltdl
+ WANTLIB-mcrypt=		mcrypt ltdl>=1 pthread
+ 
+-.if ${PV} != "7.0"
++.if ${PV} != "7.0" && ${PV} != "7.1"
+ # mysql
+ MULTI_PACKAGES+=	-mysql
+ COMMENT-mysql=		mysql database access extensions for php5
+@@ -282,7 +282,7 @@ CONFIGURE_ARGS+=	--with-snmp=shared,${LOCALBASE} --enable-ucd-snmp-hack
+ LIB_DEPENDS-snmp=	net/net-snmp
+ WANTLIB-snmp=		crypto m netsnmp>=6.2 pthread
+ 
+-.if ${PV} != "7.0"
++.if ${PV} != "7.0" && ${PV} != "7.1"
+ # sybase-ct
+ MULTI_PACKAGES+=	-sybase_ct
+ COMMENT-sybase_ct=	sybase database access extensions for php5
+@@ -298,7 +298,7 @@ CONFIGURE_ARGS+=        --with-pdo-dblib=shared,${LOCALBASE}
+ LIB_DEPENDS-pdo_dblib=	databases/freetds
+ WANTLIB-pdo_dblib=	sybdb>=6 pthread
+ 
+-.if ${PV} != "7.0"
++.if ${PV} != "7.0" && ${PV} != "7.1"
+ # mssql
+ MULTI_PACKAGES+=	-mssql
+ COMMENT-mssql=		microsoft sql access extensions for php5
+@@ -356,7 +356,7 @@ LIB_DEPENDS-fastcgi=	${LIB_DEPENDS-main}
+ RUN_DEPENDS-fastcgi=
+ 
+ SUHOSIN_V=		0.9.38
+-.if ${FLAVOR:Mno_suhosin} || ${PV} == "7.0"
++.if ${FLAVOR:Mno_suhosin} || ${PV} == "7.0" || ${PV} == "7.1"
+ SUPDISTFILES=		suhosin-${SUHOSIN_V}.tar.gz:0
+ .else
+ DISTFILES+=		suhosin-${SUHOSIN_V}.tar.gz:0
+@@ -392,6 +392,8 @@ PKGSPEC-${i}=		php-${i}->=5.5,<5.6
+ PKGSPEC-${i}=		php-${i}->=5.6,<5.7
+ .elif ${V:M7.0*}
+ PKGSPEC-${i}=		php-${i}->=7.0,<7.1
++.elif ${V:M7.1*}
++PKGSPEC-${i}=		php-${i}->=7.1,<7.2
+ .endif
+ RUN_DEPENDS-${i}+=	php-${V}:lang/php/${PV}
+ .endfor
+@@ -412,7 +414,7 @@ post-install:
+ 	${INSTALL_MAN} ${WRKBUILD}/sapi/fpm/php-fpm.8 ${PREFIX}/man/man8/php-fpm-${PV}.8
+ 	${INSTALL_DATA} ${WRKBUILD}/sapi/fpm/php-fpm.conf \
+ 		${PREFIX}/share/examples/php-${PV}/php-fpm.conf
+-.if ${PV} == "7.0"
++.if ${PV} == "7.0" || ${PV} == "7.1"
+ 	cat ${WRKBUILD}/sapi/fpm/www.conf >> \
+ 		${PREFIX}/share/examples/php-${PV}/php-fpm.conf
+ .endif
+diff --git a/lang/php/php.port.mk b/lang/php/php.port.mk
+index 1712a35f7c3..682c599c581 100644
+--- a/lang/php/php.port.mk
++++ b/lang/php/php.port.mk
+@@ -9,6 +9,8 @@ MODPHP_VSPEC = >=${MODPHP_VERSION},<5.6
+ MODPHP_VSPEC = >=${MODPHP_VERSION},<5.7
+ .elif ${MODPHP_VERSION} == 7.0
+ MODPHP_VSPEC = >=${MODPHP_VERSION},<7.1
++.elif ${MODPHP_VERSION} == 7.1
++MODPHP_VSPEC = >=${MODPHP_VERSION},<7.2
+ .endif
+ MODPHPSPEC = php-${MODPHP_VSPEC}
+ 
