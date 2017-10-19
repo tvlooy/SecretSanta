@@ -8,7 +8,7 @@
     app_domain: dev.secretsantaorganizer.com
     hostname: secretsanta
 
-    openbsd_release: snapshots
+    openbsd_release: 6.2
     openbsd_arch: amd64
     openbsd_mirror: ftp.eu.openbsd.org
     openbsd_cvs_mirror: ftp.openbsd.org
@@ -19,8 +19,8 @@
       AUTOCONF_VERSION: 2.69
 
   roles:
-    - { role: openbsd }
     - { role: tools }
+    - { role: openbsd }
     - { role: php }
     - { role: mariadb }
     - { role: nginx }

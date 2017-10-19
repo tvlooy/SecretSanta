@@ -1,7 +1,7 @@
 # PHP
 
-- include: php71.yml
-- include: extensions.yml
+- import_tasks: php71.yml
+- import_tasks: extensions.yml
 
 #- name: Detect composer installation
 #  stat:

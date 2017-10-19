@@ -5,12 +5,6 @@
     path: /usr/ports/lang/php/7.1
   register: php_71_port
 
-- name: Configure mk.conf to install port dependencies as package
-  copy:
-    src: files/mk.conf
-    dest: /etc/mk.conf
-  when: not php_71_port.stat.exists
-
 - name: Install patch for PHP 7.1
   copy:
     src: files/php71.patch
@@ -24,12 +18,10 @@
   when: not php_71_port.stat.exists
 
 - name: Install PHP 7.1 from ports
-  command: "{{ item }}"
+#  command: make FETCH_PACKAGES=Yes install
+  command: make install
   args:
     chdir: /usr/ports/lang/php/7.1
-  with_items:
-  - make
-  - make install
 
 - name: Symlink php binaries
   file:
@@ -42,6 +34,7 @@
     - phpize
 
 - name: Install PHP 7.1 extensions from ports
+#  command: env SUBPACKAGE="-{{ item }}" make PKG_CREATE_NO_CHECKS=Yes install clean-depends
   command: env SUBPACKAGE="-{{ item }}" make install
   args:
     chdir: /usr/ports/lang/php/7.1

@@ -28,3 +28,5 @@
     repo: https://github.com/openbsd/ports.git
     dest: /usr/ports
     update: no
+
+#=> ports moet juiste versie zijn niet uit git dus

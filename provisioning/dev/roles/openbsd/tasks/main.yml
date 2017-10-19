@@ -1,4 +1,4 @@
 # OpenBSD
 
-- include: environment.yml
-- include: source.yml
+- import_tasks: environment.yml
+- import_tasks: source.yml
