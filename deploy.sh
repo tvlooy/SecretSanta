@@ -41,6 +41,7 @@ cd releases/${VERSION}
 
 cp ../../shared/parameters.yml app/config
 cp ../../shared/client_secrets.json app/config
+ln -s ../../shared/var/report_cache var/report_cache
 printOk
 
 printAction "Composer install"
